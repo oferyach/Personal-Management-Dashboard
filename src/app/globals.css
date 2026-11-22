@@ -1,0 +1,85 @@
+@import "tailwindcss";
+
+/*
+ * Design tokens (Phase 0 seed of the Phase 1 design system).
+ * Light values are the default; dark values override the same custom
+ * properties so a user theme switch later is a class flip, not a rewrite.
+ * Logical properties only (margin-inline / text-align: start) so RTL (Hebrew)
+ * works by changing `dir` on <html> (spec §4).
+ */
+@theme {
+  --font-sans:
+    ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial,
+    "Noto Sans Hebrew", "Arial Hebrew", sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, "JetBrains Mono", Menlo, Consolas, monospace;
+
+  --color-background: oklch(0.985 0.002 250);
+  --color-foreground: oklch(0.22 0.02 262);
+  --color-card: oklch(1 0 0);
+  --color-muted: oklch(0.951 0.004 250);
+  --color-muted-foreground: oklch(0.53 0.018 262);
+  --color-border: oklch(0.895 0.006 250);
+  --color-accent: oklch(0.55 0.16 255);
+  --color-accent-foreground: oklch(0.99 0.002 250);
+  --color-success: oklch(0.62 0.15 155);
+  --color-warning: oklch(0.72 0.15 78);
+  --color-danger: oklch(0.6 0.19 25);
+
+  --radius-card: 0.75rem;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-background: oklch(0.18 0.012 265);
+    --color-foreground: oklch(0.95 0.006 255);
+    --color-card: oklch(0.225 0.014 265);
+    --color-muted: oklch(0.26 0.014 265);
+    --color-muted-foreground: oklch(0.72 0.014 262);
+    --color-border: oklch(0.32 0.014 265);
+    --color-accent: oklch(0.7 0.15 255);
+    --color-accent-foreground: oklch(0.18 0.012 265);
+  }
+}
+
+@layer utilities {
+  /*
+   * LTR islands inside RTL text: file paths, hosts, versions, ISO timestamps,
+   * enum codes. Direction is pinned per element and `isolate` keeps the
+   * surrounding Hebrew text from reordering them.
+   */
+  .ltr-island {
+    direction: ltr;
+    unicode-bidi: isolate;
+  }
+}
+
+@layer base {
+  :root {
+    color-scheme: light dark;
+  }
+
+  * {
+    border-color: var(--color-border);
+  }
+
+  body {
+    background-color: var(--color-background);
+    color: var(--color-foreground);
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 2px;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.001ms !important;
+      transition-duration: 0.001ms !important;
+    }
+  }
+}

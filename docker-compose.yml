@@ -1,0 +1,55 @@
+# Self-hosted deployment (spec §20).
+#
+# Phase 0 ships one service: the web app. Phase 3 adds the "worker" service
+# (jobs, reminders, sync) and Phase 6 adds Caddy for automatic HTTPS plus the
+# backup/restore sidecars. Secrets are never committed: they come from the
+# environment or a local .env file that .gitignore excludes.
+
+name: personal-management-dashboard
+
+services:
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: personal-management-dashboard:0.0.0
+    container_name: pmd-web
+    restart: unless-stopped
+    # Published on localhost only; the reverse proxy (Phase 6) terminates TLS.
+    # 4000 is the project port; 3000 on this machine belongs to another site.
+    ports:
+      - "127.0.0.1:${PORT:-4000}:4000"
+    environment:
+      NODE_ENV: production
+      PORT: 4000
+      APP_URL: ${APP_URL:-http://localhost:4000}
+      DATABASE_PATH: ./data/app.db
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      DEFAULT_TIMEZONE: ${DEFAULT_TIMEZONE:-Asia/Jerusalem}
+      # Hebrew is the primary UI language (RTL); English is selectable per user.
+      DEFAULT_LANGUAGE: ${DEFAULT_LANGUAGE:-he}
+      # Required, fail fast with a clear message instead of generating secrets.
+      SESSION_SECRET: ${SESSION_SECRET:?SESSION_SECRET is required (>= 32 random characters)}
+      APP_ENCRYPTION_KEY: ${APP_ENCRYPTION_KEY:?APP_ENCRYPTION_KEY is required (32 random bytes as 64 hex characters)}
+      # Optional integrations: leave empty to run without them.
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_SECURITY: ${SMTP_SECURITY:-starttls}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASS: ${SMTP_PASS:-}
+      SMTP_FROM: ${SMTP_FROM:-}
+      SMTP_FROM_NAME: ${SMTP_FROM_NAME:-Personal Dashboard}
+      GRAPH_CLIENT_ID: ${GRAPH_CLIENT_ID:-}
+      GRAPH_CLIENT_SECRET: ${GRAPH_CLIENT_SECRET:-}
+      GRAPH_TENANT_ID: ${GRAPH_TENANT_ID:-common}
+    volumes:
+      - pmd-data:/app/data
+    healthcheck:
+      test: ["CMD", "node", "scripts/healthcheck.mjs"]
+      interval: 30s
+      timeout: 5s
+      start_period: 20s
+      retries: 3
+
+volumes:
+  pmd-data:

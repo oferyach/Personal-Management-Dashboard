@@ -1,0 +1,25 @@
+# Build context exclusions. The runtime image receives only the standalone
+# build output (see Dockerfile), never the source tree or local data.
+node_modules
+.next
+.git
+.gitignore
+data
+.test-tmp
+coverage
+playwright-report
+test-results
+blob-report
+tests
+docs
+.env
+.env.*
+!.env.example
+*.log
+npm-debug.log*
+push.bat
+deploy-local.*
+*.local.ps1
+.editorconfig
+.prettierignore
+.agents

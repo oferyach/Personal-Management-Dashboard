@@ -1,0 +1,14 @@
+.next/
+node_modules/
+coverage/
+data/
+.test-tmp/
+drizzle/
+playwright-report/
+test-results/
+public/sw.js
+package-lock.json
+next-env.d.ts
+
+# Project spec: kept byte-identical to the original README.md (hash baselined)
+README.md

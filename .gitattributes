@@ -1,0 +1,21 @@
+# Normalise line endings so files that Linux/Docker consume are always LF,
+# regardless of the Windows development machine (spec §20 targets Ubuntu LTS).
+* text=auto eol=lf
+
+# Explicit LF for anything executed by Linux
+Dockerfile text eol=lf
+*.dockerfile text eol=lf
+.dockerignore text eol=lf
+*.sh text eol=lf
+Caddyfile text eol=lf
+.editorconfig text eol=lf
+
+# Keep the original spec exactly as the user wrote it (CRLF preserved)
+README.md -text
+
+# Binary-ish / generated
+*.png binary
+*.jpg binary
+*.webp binary
+*.gif binary
+package-lock.json text eol=lf
