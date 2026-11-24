@@ -6,7 +6,9 @@ import {
   randomBytes,
   timingSafeEqual,
 } from "node:crypto";
+import { AsyncLocalStorage } from "node:async_hooks";
 import { getEnv } from "./env";
+import { passwordHasher } from "./passwords";
 import { redact } from "./redact";
 
 /**
@@ -85,6 +87,7 @@ export function decryptSecret(value: string, scope: string): string {
 
   const decipher = createDecipheriv(ALGORITHM, dataKey(version), iv, { authTagLength: TAG_BYTES });
   decipher.setAAD(Buffer.from(`pmd:${scope}:${version}`));
+  decipher.setAuthTag(tag);
   try {
     return Buffer.concat([decipher.update(ciphertext), decipher.final()]).toString("utf8");
   } catch {
@@ -98,16 +101,79 @@ export function isEncryptedSecret(value: string | null | undefined): boolean {
 }
 
 /**
- * Better Auth's `twoFactor` plugin hook for backup-code storage.
+ * Better Auth's backup-code hook expects reversible storage, while the application
+ * contract requires one-way hashes. The request candidate is carried in
+ * AsyncLocalStorage by `withBackupCodeCandidate`: `decrypt()` verifies that candidate
+ * against every Argon2id hash and gives the plugin a synthetic list containing the
+ * candidate only at the matching position. When the plugin removes that entry and
+ * calls `encrypt()` again, the matching hash disappears and every other hash is
+ * preserved. Plain recovery codes are therefore never recoverable from SQLite.
  *
- * The plugin's own options are "plain" (its default) or "encrypted" with the
- * *cookie signing* secret. Neither is acceptable here: backup codes are a second
- * factor, and the spec requires versioned key IDs. The hook gives us the seam, so
- * codes land in `two_factor.backup_codes` as `v1.<iv>.<tag>.<ct>`.
+ * `v1.*` values from the pre-gate implementation remain readable and migrate to
+ * hashes on the first successful recovery-code use.
  */
+const BACKUP_HASH_PREFIX = "hash-v1.";
+const backupCodeCandidate = new AsyncLocalStorage<string | null>();
+
+function parseCodeList(data: string): string[] {
+  const parsed: unknown = JSON.parse(data);
+  if (!Array.isArray(parsed) || !parsed.every((value) => typeof value === "string")) {
+    throw new SecretStoreError("Stored recovery codes are malformed.");
+  }
+  return parsed;
+}
+
+function readStoredCodeHashes(data: string): string[] {
+  if (data.startsWith(BACKUP_HASH_PREFIX)) {
+    return parseCodeList(
+      Buffer.from(data.slice(BACKUP_HASH_PREFIX.length), "base64url").toString(),
+    );
+  }
+  if (isEncryptedSecret(data)) return parseCodeList(decryptSecret(data, "two_factor.backup_codes"));
+  throw new SecretStoreError("Stored recovery codes use an unknown format.");
+}
+
+export async function withBackupCodeCandidate<T>(
+  request: Request,
+  run: () => Promise<T>,
+): Promise<T> {
+  if (new URL(request.url).pathname.endsWith("/two-factor/verify-backup-code")) {
+    let candidate: string | null = null;
+    try {
+      const body = (await request.clone().json()) as { code?: unknown };
+      if (typeof body.code === "string" && body.code.length <= 128) candidate = body.code;
+    } catch {
+      candidate = null;
+    }
+    return backupCodeCandidate.run(candidate, run);
+  }
+  return run();
+}
+
 export const backupCodeStore = {
-  encrypt: async (data: string) => encryptSecret(data, "two_factor.backup_codes"),
-  decrypt: async (data: string) => decryptSecret(data, "two_factor.backup_codes"),
+  encrypt: async (data: string) => {
+    const values = parseCodeList(data);
+    const hashes = await Promise.all(
+      values.map((value) =>
+        value.startsWith("$argon2id$") ? Promise.resolve(value) : passwordHasher.hash(value),
+      ),
+    );
+    return `${BACKUP_HASH_PREFIX}${Buffer.from(JSON.stringify(hashes)).toString("base64url")}`;
+  },
+  decrypt: async (data: string) => {
+    const values = readStoredCodeHashes(data);
+    const candidate = backupCodeCandidate.getStore();
+    if (!candidate) return "[]";
+
+    const matches = await Promise.all(
+      values.map((value) =>
+        value.startsWith("$argon2id$")
+          ? passwordHasher.verify({ candidate, storedHash: value })
+          : Promise.resolve(secretsEqual(candidate, value)),
+      ),
+    );
+    return JSON.stringify(values.map((value, index) => (matches[index] ? candidate : value)));
+  },
 };
 
 /** Log/diagnostic-safe view of a secret (spec §14). */

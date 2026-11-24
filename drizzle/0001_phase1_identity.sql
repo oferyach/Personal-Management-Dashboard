@@ -144,6 +144,7 @@ CREATE TABLE `roles` (
 CREATE TABLE `user_preferences` (
 	`user_id` text PRIMARY KEY NOT NULL,
 	`language` text,
+	`theme` text DEFAULT 'system' NOT NULL,
 	`timezone` text DEFAULT 'Asia/Jerusalem' NOT NULL,
 	`workweek_days` integer DEFAULT 5 NOT NULL,
 	`workday_start_hour` integer DEFAULT 9 NOT NULL,
@@ -152,10 +153,4 @@ CREATE TABLE `user_preferences` (
 	`default_calendar_reminder_offsets` text DEFAULT '[]' NOT NULL,
 	`updated_at` text NOT NULL,
 	FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON UPDATE no action ON DELETE cascade
-);
---> statement-breakpoint
-CREATE TABLE `system_meta` (
-	`key` text PRIMARY KEY NOT NULL,
-	`value` text NOT NULL,
-	`updated_at` text NOT NULL
 );

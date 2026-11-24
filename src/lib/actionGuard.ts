@@ -1,6 +1,8 @@
 import "server-only";
 import { ActionError, type NoticeCode } from "@/lib/actionError";
 import { recordAudit } from "@/lib/audit";
+import { getConfig } from "@/lib/env";
+import { consumeRateLimit } from "@/lib/rateLimit";
 import { AuthorizationError, authorize, RbacConfigError, type PermissionKey } from "@/lib/rbac";
 import type { ActionContext } from "@/lib/requestAuth";
 
@@ -36,6 +38,19 @@ export async function mustAllow(
     throw new ActionError("account_deactivated", "account_banned");
   }
 
+  if (
+    ctx.user.mustChangePassword &&
+    ![
+      "security.view_own",
+      "security.password_change_own",
+      "security.mfa_manage_own",
+      "security.sessions_manage_own",
+    ].includes(permission)
+  ) {
+    deny(ctx, permission, "must_change_password");
+    throw new ActionError("forbidden", "MUST_CHANGE_PASSWORD");
+  }
+
   try {
     await authorize(ctx.user.actor, permission, options);
   } catch (error) {
@@ -49,6 +64,50 @@ export async function mustAllow(
     }
     throw error;
   }
+
+  enforceSensitiveActionRateLimit(ctx, permission);
+}
+
+const SENSITIVE_ACTIONS = new Set<PermissionKey>([
+  "profile.edit_own",
+  "settings.edit_own",
+  "security.password_change_own",
+  "security.mfa_manage_own",
+  "security.sessions_manage_own",
+  "users.create",
+  "users.edit",
+  "users.deactivate",
+  "users.revoke_sessions",
+  "users.reset_password",
+  "users.impersonate",
+  "roles.assign",
+  "settings.integrations.edit",
+  "settings.system.edit",
+]);
+
+export function enforceSensitiveActionRateLimit(
+  ctx: ActionContext,
+  permission: PermissionKey,
+): void {
+  if (!SENSITIVE_ACTIONS.has(permission)) return;
+  const config = getConfig().auth.rateLimit;
+  const decision = consumeRateLimit(`${ctx.user.id}:${permission}`, {
+    windowSec: config.windowSec,
+    maxRequests: config.maxRequests,
+  });
+  if (decision.allowed) return;
+
+  recordAudit({
+    action: "rate_limited",
+    outcome: "denied",
+    actorUserId: ctx.user.id,
+    sessionId: ctx.user.session.id,
+    targetKind: "action",
+    targetId: permission,
+    detail: { retryAfterSec: decision.retryAfterSec },
+    headers: ctx.headers,
+  });
+  throw new ActionError("rate_limited", "ACTION_RATE_LIMIT");
 }
 
 function deny(ctx: ActionContext, permission: PermissionKey, reason: string): void {

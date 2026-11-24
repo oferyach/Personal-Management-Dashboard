@@ -163,7 +163,7 @@ Estimated size: small.
 
 ## 5. Phase 1 — Foundation: auth, users, RBAC, MFA, shell, settings
 
-**Status: IN PROGRESS since 2026-11-22 (Phase 0 approved the same day).**
+**Status: VERIFIED 2026-11-24; Gate G-1 passed and is AWAITING APPROVAL.** SMTP-backed email reset remains intentionally assigned to Phase 3; Phase 1 ships the documented administrator reset plus forced first-login change path.
 
 Objective: locked, secure, multi-user app shell. After this phase everything else is built inside a working auth/authorization boundary.
 

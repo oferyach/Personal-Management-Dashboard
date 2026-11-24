@@ -1,5 +1,5 @@
 import "server-only";
-import { and, count, desc, eq, gte } from "drizzle-orm";
+import { and, count, desc, eq, gte, or } from "drizzle-orm";
 
 import { getDb } from "@/db/client";
 import { audit_logs, sessions, users } from "@/db/schema";
@@ -25,7 +25,10 @@ function startOfUtcDay(): string {
   ).toISOString();
 }
 
-export function collectDashboardFacts(userId: string): DashboardFacts {
+export function collectDashboardFacts(
+  userId: string,
+  options: { includeAccountAdministration?: boolean; includeGlobalAudit?: boolean } = {},
+): DashboardFacts {
   const db = getDb();
   const nowIso = new Date().toISOString();
 
@@ -48,17 +51,34 @@ export function collectDashboardFacts(userId: string): DashboardFacts {
   const attempts = db
     .select({ c: count() })
     .from(audit_logs)
-    .where(and(gte(audit_logs.createdAt, dayStart), eq(audit_logs.action, "sign_in")))
+    .where(
+      and(
+        gte(audit_logs.createdAt, dayStart),
+        eq(audit_logs.action, "sign_in"),
+        options.includeGlobalAudit ? undefined : eq(audit_logs.actorUserId, userId),
+      ),
+    )
     .get();
 
-  const total = db.select({ c: count() }).from(users).get();
+  const total = options.includeAccountAdministration
+    ? db.select({ c: count() }).from(users).get()
+    : undefined;
 
-  const byRole = db.select({ role: users.role, c: count() }).from(users).groupBy(users.role).all();
+  const byRole = options.includeAccountAdministration
+    ? db.select({ role: users.role, c: count() }).from(users).groupBy(users.role).all()
+    : [];
 
   const auditToday = db
     .select({ c: count() })
     .from(audit_logs)
-    .where(gte(audit_logs.createdAt, dayStart))
+    .where(
+      and(
+        gte(audit_logs.createdAt, dayStart),
+        options.includeGlobalAudit
+          ? undefined
+          : or(eq(audit_logs.actorUserId, userId), eq(audit_logs.targetUserId, userId)),
+      ),
+    )
     .get();
 
   return {

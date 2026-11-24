@@ -9,12 +9,12 @@ Legend: `NOT_STARTED` · `PLANNED` · `IN_PROGRESS` · `VERIFIED` (tests execute
 
 ## Current state
 
-**Phase 0 APPROVED (2026-11-22). Phase 1 is now IN PROGRESS.** Your answers are recorded in `docs/PLAN.md` §12.1 and in the decisions log below: Hebrew stays the default with English selectable, timezone `Asia/Jerusalem`, hosting + OneDrive deferred until required, and Phase 0 committed to git.
+**Phase 0 APPROVED (2026-11-22). Phase 1 is VERIFIED and AWAITING APPROVAL (2026-11-24).** Your answers are recorded in `docs/PLAN.md` §12.1 and in the decisions log below: Hebrew stays the default with English selectable, timezone `Asia/Jerusalem`, hosting + OneDrive deferred until required, and Phase 0 committed to git.
 
 ```
 Phase 0  Foundation & tooling gate      APPROVED (2026-11-22) — committed
 A-1/A-2  Port 4000 + Hebrew/RTL shell   APPROVED + VERIFIED
-Phase 1  Auth, users, RBAC, MFA, shell  IN_PROGRESS  ← current work
+Phase 1  Auth, users, RBAC, MFA, shell  VERIFIED — AWAITING APPROVAL  ← gate G-1
 Phase 2  Calendar, tasks, projects,     NOT_STARTED
          dashboard, activity, search
 Phase 3  SMTP, reminders, jobs, worker, NOT_STARTED
@@ -26,16 +26,18 @@ Phase 6  Production readiness           NOT_STARTED
 
 What exists now — real code, executed tests, measured output (no placeholders):
 
-| Area                                                                | What is real, and what proves it                                                                                                                                                                      |
-| ------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `docs/PLAN.md`, `docs/ARCHITECTURE.md`                              | Phase plan + architecture, now including the binding amendments §0A                                                                                                                                   |
-| `src/app/` layout + status page (`layout.tsx`, `page.tsx`)          | Hebrew-first RTL landing page showing only measured runtime/DB state; language switch (server action form, works with JS disabled). Proven by Playwright on desktop + mobile                          |
-| `src/i18n/` (locales, dictionaries, actions, toggle)                | Typed dictionaries — `he` primary/source-of-truth, `en` typed against it; server-side locale resolution; RTL from one `dir` attribute. Proven by `tests/unit/i18n.test.ts` + `tests/e2e/i18n.spec.ts` |
-| `src/lib/env.ts` (port 4000 default, `DEFAULT_LANGUAGE=he`)         | Zod-validated config; production refuses to boot without real secrets; dev/test generate throwaway secrets. Proven by `tests/unit/env.test.ts`                                                        |
-| `src/db/` + `drizzle/` migration 0000                               | better-sqlite3 with WAL / FK / busy_timeout / synchronous=NORMAL, baseline migration applied. Proven by `tests/unit/db.test.ts`, integration health test                                              |
-| `src/lib/{health,http,log,csp,runtime,serverStart}`, `src/proxy.ts` | Health snapshot (two endpoints), error envelope, redacting logger, per-request CSP nonce via the Next 16 `proxy` convention, fail-closed startup. Proven by unit + integration + E2E                  |
-| `Dockerfile`, `docker-compose.yml`, `scripts/`                      | Standalone production artifact, port **4000**, healthcheck scripts, E2E server runner. **Docker build itself not verified — Docker is not installed on this machine**                                 |
-| `README.md`                                                         | Untouched, byte-for-byte. sha256 re-checked 2026-11-22: `bff38cafa2617c7f1cb867af280c89a76f5bf5badede2f8b0500ff7818aa5e70` = baseline                                                                 |
+| Area                                                                | What is real, and what proves it                                                                                                                                                                                                      |
+| ------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `docs/PLAN.md`, `docs/ARCHITECTURE.md`                              | Phase plan + architecture, now including the binding amendments §0A                                                                                                                                                                   |
+| `src/app/` layout + status page (`layout.tsx`, `page.tsx`)          | Hebrew-first RTL landing page showing only measured runtime/DB state; language switch (server action form, works with JS disabled). Proven by Playwright on desktop + mobile                                                          |
+| `src/i18n/` (locales, dictionaries, actions, toggle)                | Typed dictionaries — `he` primary/source-of-truth, `en` typed against it; server-side locale resolution; RTL from one `dir` attribute. Proven by `tests/unit/i18n.test.ts` + `tests/e2e/i18n.spec.ts`                                 |
+| `src/lib/env.ts` (port 4000 default, `DEFAULT_LANGUAGE=he`)         | Zod-validated config; production refuses to boot without real secrets; dev/test generate throwaway secrets. Proven by `tests/unit/env.test.ts`                                                                                        |
+| `src/db/` + `drizzle/` migration 0000                               | better-sqlite3 with WAL / FK / busy_timeout / synchronous=NORMAL, baseline migration applied. Proven by `tests/unit/db.test.ts`, integration health test                                                                              |
+| `src/lib/{health,http,log,csp,runtime,serverStart}`, `src/proxy.ts` | Health snapshot (two endpoints), error envelope, redacting logger, per-request CSP nonce via the Next 16 `proxy` convention, fail-closed startup. Proven by unit + integration + E2E                                                  |
+| `Dockerfile`, `docker-compose.yml`, `scripts/`                      | Standalone production artifact, port **4000**, healthcheck scripts, E2E server runner. **Docker build itself not verified — Docker is not installed on this machine**                                                                 |
+| `README.md`                                                         | Untouched, byte-for-byte. sha256 re-checked 2026-11-22: `bff38cafa2617c7f1cb867af280c89a76f5bf5badede2f8b0500ff7818aa5e70` = baseline                                                                                                 |
+| Phase 1 identity and security                                       | Better Auth + Argon2id, four-role RBAC, privileged MFA policy, hashed recovery codes, session/password administration, persistent rate limits, audit trails, first-admin CLI, and append-only migration upgrade test                  |
+| Phase 1 product surface                                             | Authenticated RTL shell, working mobile/collapse navigation, profile/preferences and validated profile images, security and user administration screens, confirmation dialogs, and `/api/v1` profile/users/roles/admin/OpenAPI routes |
 
 ---
 
@@ -43,37 +45,56 @@ What exists now — real code, executed tests, measured output (no placeholders)
 
 Updated at each gate. IDs match `docs/PLAN.md`.
 
-| ID       | Item                                                        | Status       | Verified by                                                                                                                              |
-| -------- | ----------------------------------------------------------- | ------------ | ---------------------------------------------------------------------------------------------------------------------------------------- |
-| P.0      | Read spec, audit environment, write plan + architecture     | **VERIFIED** | commands below (2026-11-22)                                                                                                              |
-| 0.1–0.6  | Repo/tooling/gate skeleton                                  | **VERIFIED** | Gate G-0 run, 2026-11-22 (commands + output below)                                                                                       |
-| A-1      | Local port 4000 (was 3000 — occupied here by another site)  | **VERIFIED** | `npm run dev` → `http://localhost:4000` HTTP 200; `tests/unit/env.test.ts`, `tests/unit/csp.test.ts`, E2E on 4100/4111                   |
-| A-2      | Hebrew primary + RTL, English secondary                     | **VERIFIED** | `tests/unit/i18n.test.ts` (18 tests), `tests/e2e/i18n.spec.ts` (6 tests × desktop+mobile), live `curl` check of `lang="he-IL" dir="rtl"` |
-| 1.1–1.12 | Foundation / auth / RBAC / MFA / shell / settings           | NOT_STARTED  | —                                                                                                                                        |
-| 2.1–2.12 | Calendar / tasks / projects / dashboard / activity / search | NOT_STARTED  | —                                                                                                                                        |
-| 3.1–3.9  | SMTP / reminders / job subsystem / worker / notifications   | NOT_STARTED  | —                                                                                                                                        |
-| 4.1–4.8  | Asset management                                            | NOT_STARTED  | —                                                                                                                                        |
-| 5.1–5.9  | OneDrive integration                                        | NOT_STARTED  | —                                                                                                                                        |
-| 6.1–6.7  | Production readiness                                        | NOT_STARTED  | —                                                                                                                                        |
+| ID       | Item                                                        | Status       | Verified by                                                                                                                                       |
+| -------- | ----------------------------------------------------------- | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| P.0      | Read spec, audit environment, write plan + architecture     | **VERIFIED** | commands below (2026-11-22)                                                                                                                       |
+| 0.1–0.6  | Repo/tooling/gate skeleton                                  | **VERIFIED** | Gate G-0 run, 2026-11-22 (commands + output below)                                                                                                |
+| A-1      | Local port 4000 (was 3000 — occupied here by another site)  | **VERIFIED** | `npm run dev` → `http://localhost:4000` HTTP 200; `tests/unit/env.test.ts`, `tests/unit/csp.test.ts`, E2E on 4100/4111                            |
+| A-2      | Hebrew primary + RTL, English secondary                     | **VERIFIED** | `tests/unit/i18n.test.ts` (18 tests), `tests/e2e/i18n.spec.ts` (6 tests × desktop+mobile), live `curl` check of `lang="he-IL" dir="rtl"`          |
+| 1.1–1.12 | Foundation / auth / RBAC / MFA / shell / settings           | **VERIFIED** | 17 Vitest files / 93 tests; production build; 54 Playwright tests (51 passed, 3 stateful mobile duplicates intentionally skipped); evidence below |
+| 2.1–2.12 | Calendar / tasks / projects / dashboard / activity / search | NOT_STARTED  | —                                                                                                                                                 |
+| 3.1–3.9  | SMTP / reminders / job subsystem / worker / notifications   | NOT_STARTED  | —                                                                                                                                                 |
+| 4.1–4.8  | Asset management                                            | NOT_STARTED  | —                                                                                                                                                 |
+| 5.1–5.9  | OneDrive integration                                        | NOT_STARTED  | —                                                                                                                                                 |
+| 6.1–6.7  | Production readiness                                        | NOT_STARTED  | —                                                                                                                                                 |
 
 ---
 
 ## Gate queue (approval protocol)
 
-| Gate       | Contents                                                                                                        | Status                    | Your decision                      |
-| ---------- | --------------------------------------------------------------------------------------------------------------- | ------------------------- | ---------------------------------- |
-| G-P (plan) | `docs/PLAN.md`, `docs/ARCHITECTURE.md`, 4 open questions (Docker, README handling, external creds, target host) | **APPROVED (2026-11-22)** | given; Q3/Q4 deferred, Q5 answered |
-| G-0        | install / typecheck / lint / unit smoke / build / start / health 200 / no-secrets-in-git                        | **PASSED → APPROVED**     | given 2026-11-22                   |
-| G-1        | auth+RBAC+MFA integration suite, isolation suite, E2E flows 1,2,11,12                                           | IN_PROGRESS               | —                                  |
-| G-2        | recurrence unit matrix, CRUD/isolation integration, E2E 3–8 desktop+mobile                                      | NOT_RUN                   | —                                  |
-| G-3        | restart-durability test, dedupe/no-double-send test, mock SMTP delivery, E2E 9,10,14                            | NOT_RUN                   | —                                  |
-| G-4        | index/browse/bulk-edit integration, originals-unchanged checksum test, E2E asset flows                          | NOT_RUN                   | —                                  |
-| G-5        | mocked-Graph integration (pagination, 429/Retry-After, resume), E2E 13, degraded-without-creds test             | NOT_RUN                   | —                                  |
-| G-6        | full `npm run verify`, security review, backup/restore run, docs, spec §26 checklist                            | NOT_RUN                   | —                                  |
+| Gate       | Contents                                                                                                        | Status                         | Your decision                      |
+| ---------- | --------------------------------------------------------------------------------------------------------------- | ------------------------------ | ---------------------------------- |
+| G-P (plan) | `docs/PLAN.md`, `docs/ARCHITECTURE.md`, 4 open questions (Docker, README handling, external creds, target host) | **APPROVED (2026-11-22)**      | given; Q3/Q4 deferred, Q5 answered |
+| G-0        | install / typecheck / lint / unit smoke / build / start / health 200 / no-secrets-in-git                        | **PASSED → APPROVED**          | given 2026-11-22                   |
+| G-1        | auth+RBAC+MFA integration suite, isolation suite, E2E flows 1,2,11,12                                           | **PASSED — AWAITING APPROVAL** | —                                  |
+| G-2        | recurrence unit matrix, CRUD/isolation integration, E2E 3–8 desktop+mobile                                      | NOT_RUN                        | —                                  |
+| G-3        | restart-durability test, dedupe/no-double-send test, mock SMTP delivery, E2E 9,10,14                            | NOT_RUN                        | —                                  |
+| G-4        | index/browse/bulk-edit integration, originals-unchanged checksum test, E2E asset flows                          | NOT_RUN                        | —                                  |
+| G-5        | mocked-Graph integration (pagination, 429/Retry-After, resume), E2E 13, degraded-without-creds test             | NOT_RUN                        | —                                  |
+| G-6        | full `npm run verify`, security review, backup/restore run, docs, spec §26 checklist                            | NOT_RUN                        | —                                  |
 
 ---
 
 ## Log (append-only, newest first)
+
+### 2026-11-24 — Phase 1 implemented; Gate G-1 PASSED and awaits approval
+
+Implemented the complete Phase 1 foundation: migration-safe Better Auth identity tables, first-admin bootstrap, exact four-role permission matrix and ownership guards, privileged-role MFA, QR enrollment, Argon2id recovery-code hashes, session/password administration, persistent rate limiting, security audit coverage, verified locale preferences, profile image validation and authenticated delivery, responsive RTL shell, users/roles UI, native confirmation dialogs, and the documented `/api/v1` surface with Zod validation and public OpenAPI description.
+
+Important corrections found during the gate: the original Phase 0 migration was restored and Phase 1 made append-only; locale lookup now verifies the session instead of trusting a cookie identifier; audit filters combine actor and action; the mobile/collapse checkbox selectors now operate on their real DOM structure; and API origin comparison uses the configured public URL rather than an internal reverse-proxy URL.
+
+| Command                 | Executed result                                                                                                                                                                                                                             |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `npm run typecheck`     | **passed**, 0 TypeScript errors                                                                                                                                                                                                             |
+| `npm run lint`          | **passed**, 0 ESLint errors/warnings                                                                                                                                                                                                        |
+| `npm run format:check`  | **passed**, all files formatted                                                                                                                                                                                                             |
+| `npm test`              | **17 files / 93 tests passed**                                                                                                                                                                                                              |
+| `npm run test:coverage` | **passed**; 56.08% statements, 52.08% branches, 58.88% functions, 58.04% lines. Security service highlights: account security 94.38%, auth 86.95%, rate limiter 100%, dashboard 100%                                                        |
+| `npm run build`         | **passed** with Next 16.4.6 Webpack production build; all Phase 1 pages and API routes emitted                                                                                                                                              |
+| `npm run test:e2e`      | **54 tests: 51 passed / 3 intentional stateful mobile duplicates skipped** across desktop and Pixel 7 projects; API authorization/mutation, MFA/RBAC, RTL, mobile open navigation, desktop collapse, startup and security headers all green |
+| migration upgrade test  | included in the green integration suite; reconstructs the Phase 0 database then applies Phase 1 migrations successfully                                                                                                                     |
+
+Intentional, documented deferrals do not block G-1: SMTP-backed email reset remains Phase 3, with the Phase 1 admin-reset/forced-change path operational; Docker cannot be executed on this host because Docker is not installed. The three skipped mobile cases are duplicate, state-mutating identity lifecycles run once on desktop; the remaining mobile project tests cover login failure, API authorization, RTL, shell rendering, and actual menu opening.
 
 ### 2026-11-22 (night) — Phase 0 APPROVED, committed as `64e06d6`, Phase 1 started
 

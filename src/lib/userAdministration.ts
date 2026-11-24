@@ -5,7 +5,7 @@ import { getDb } from "@/db/client";
 import { sessions as sessionsTable, users } from "@/db/schema";
 import type { RoleKey } from "@/db/schema/identity";
 import { ActionError } from "@/lib/actionError";
-import { mustAllow } from "@/lib/actionGuard";
+import { enforceSensitiveActionRateLimit, mustAllow } from "@/lib/actionGuard";
 import { recordAudit } from "@/lib/audit";
 import { getAuth } from "@/lib/auth";
 import { generateTemporaryPassword, tempPasswordKey } from "@/lib/accountSecurity";
@@ -254,8 +254,8 @@ export async function assignUserRole(
   userId: string,
   role: RoleKey,
 ): Promise<ManagedUserRow> {
-  const target = requireTarget(ctx, userId);
   if (!isRoleKey(role)) throw new ActionError("not_assignable", "UNKNOWN_ROLE");
+  enforceSensitiveActionRateLimit(ctx, "roles.assign");
 
   try {
     await assertCanAssignRole(ctx.user.actor, role, userId);
@@ -273,6 +273,8 @@ export async function assignUserRole(
     });
     throw new ActionError(reason === "stale_session" ? "stale_session" : "not_assignable", reason);
   }
+
+  const target = requireTarget(ctx, userId);
 
   if (target.role === role) throw new ActionError("invalid_input", "ROLE_UNCHANGED");
   guardLastAdmin(ctx, target);
@@ -309,8 +311,8 @@ export async function setAccountActive(
   active: boolean,
   reason?: string,
 ): Promise<ManagedUserRow> {
-  const target = requireTarget(ctx, userId);
   await mustAllow(ctx, "users.deactivate");
+  const target = requireTarget(ctx, userId);
   if (!active) guardLastAdmin(ctx, target);
 
   try {
@@ -345,8 +347,8 @@ export async function setAccountActive(
 
 /** Kill every session of an account (1.4 + 1.7). */
 export async function revokeUserSessions(ctx: ActionContext, userId: string): Promise<number> {
-  const target = requireTarget(ctx, userId);
   await mustAllow(ctx, "users.revoke_sessions", { requireFreshSession: true });
+  const target = requireTarget(ctx, userId);
   const revoked = await revokeSessionsOf(ctx, userId, "manual");
   recordAudit({
     action: "sessions_revoked_all",
@@ -394,8 +396,8 @@ export async function resetUserPassword(
   ctx: ActionContext,
   userId: string,
 ): Promise<{ user: ManagedUserRow; temporaryPassword: string }> {
-  const target = requireTarget(ctx, userId);
   await mustAllow(ctx, "users.reset_password", { requireFreshSession: true });
+  const target = requireTarget(ctx, userId);
 
   const temporaryPassword = generateTemporaryPassword();
 

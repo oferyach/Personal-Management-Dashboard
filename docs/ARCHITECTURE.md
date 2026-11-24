@@ -1,6 +1,6 @@
-# Architecture (DRAFT v0 — pending approval with `docs/PLAN.md`)
+# Architecture (Phase 1 implemented; later feature phases remain planned)
 
-Not implemented yet. This is the design Phase 1 will be built against. It satisfies spec §3 (separation of business logic / data access / API handlers / UI) and §24 (extension boundaries).
+The Phase 1 cross-cutting foundation is implemented and Gate G-1 verified. This document also defines the target module shape for Phases 2–6. The foundation satisfies spec §3 through thin route/action boundaries and actor-aware services; larger feature domains will add the repository split shown below as their schemas arrive.
 
 ## 1. Modules and boundaries
 
@@ -11,7 +11,8 @@ UI (src/app + src/components)
 API handlers (src/app/api/v1/**/route.ts)      ← thin: parse+validate, call service, map errors
    │  actor context (session user, roles, permissions)
    ▼
-Domain services (src/server/<module>/service.ts) ← business rules, transactions, authorization
+Domain services (src/lib in Phase 1; src/server/<module>/service.ts as domains grow)
+                                                ← business rules, transactions, authorization
    │
    ├── Repositories (src/server/<module>/repository.ts) ← the ONLY place that touches SQL
    │        ▼
@@ -27,7 +28,7 @@ Rules enforced by lint/review:
 
 1. UI never imports repositories; services never import UI.
 2. Every service function receives an explicit `Actor` and returns authorization-filtered data. No "get by id without owner check".
-3. Only `repository.ts` files construct SQL. Only `route.ts` files parse HTTP.
+3. Only `route.ts` files parse HTTP. Phase 1 SQL is encapsulated in actor-aware `src/lib` services; new multi-entity feature domains split SQL into `repository.ts` modules as shown above.
 4. External systems (Graph, SMTP) are only reachable through adapters with a mock implementation used by tests.
 
 ## 2. Request/authorization flow

@@ -7,12 +7,7 @@ import { recordAudit } from "@/lib/audit";
 import { getAuth } from "@/lib/auth";
 import { getLogger } from "@/lib/log";
 import { validatePasswordStrength } from "@/lib/passwords";
-import {
-  ROLE_KEYS,
-  activePrivilegedAccountCount,
-  isPrivilegedRole,
-  isRoleKey,
-} from "@/lib/rbac";
+import { ROLE_KEYS, activePrivilegedAccountCount, isPrivilegedRole, isRoleKey } from "@/lib/rbac";
 
 /**
  * First-admin bootstrap (work item 1.3).
@@ -116,10 +111,7 @@ function assertInput(input: FirstAdminInput): { name: string; email: string; rol
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 254)
     throw new AdminBootstrapError("invalid_email", "email is not a valid address");
   if (!isRoleKey(role))
-    throw new AdminBootstrapError(
-      "invalid_role",
-      `role is not one of: ${ROLE_KEYS.join(", ")}`,
-    );
+    throw new AdminBootstrapError("invalid_role", `role is not one of: ${ROLE_KEYS.join(", ")}`);
 
   const problems = validatePasswordStrength(input.password);
   if (problems.length > 0)
@@ -209,7 +201,7 @@ export async function createFirstAdmin(input: FirstAdminInput): Promise<FirstAdm
   const mustChangePw =
     existing.privilegedAccounts > 0 && !isPrivilegedRole(role)
       ? true
-      : (input.force === true && isPrivilegedRole(role))
+      : input.force === true && isPrivilegedRole(role)
         ? false
         : false;
 

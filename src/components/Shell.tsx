@@ -56,7 +56,13 @@ export function Shell({
 
       {/* JS-free toggles. They must precede .pmd-shell so the CSS sibling rules apply. */}
       <label className="pmd-nav-toggle border-border bg-card rounded-(--radius-card) border px-3 py-2 text-sm">
-        <input type="checkbox" id="pmd-nav-toggle" className="me-2" />
+        <input
+          type="checkbox"
+          id="pmd-nav-toggle"
+          className="me-2"
+          aria-controls="pmd-sidebar"
+          aria-label={s.openMenu}
+        />
         {s.openMenu}
       </label>
       <label className="pmd-collapse-toggle border-border bg-card rounded-(--radius-card) border px-2 py-1 text-xs">
@@ -65,7 +71,10 @@ export function Shell({
       </label>
 
       <div className="pmd-shell">
-        <aside className="border-border bg-card flex flex-col gap-4 border-e p-4">
+        <aside
+          id="pmd-sidebar"
+          className="pmd-nav border-border bg-card flex flex-col gap-4 border-e p-4"
+        >
           <div className="flex items-center justify-between gap-2">
             <Link href="/" className="text-foreground text-base font-semibold tracking-tight">
               {dict.app.name}

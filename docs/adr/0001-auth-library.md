@@ -59,9 +59,11 @@ a presupposition.
    library's built-in role tables are not used for authorization; every decision lives in
    `src/lib/rbac.ts` and `src/lib/actionGuard.ts`, so the auth library can never be the reason a
    privileged action is allowed.
-6. **Secrets never enter the durable store or the URL.** `otpauth://` URIs and backup codes exist
-   only in `src/lib/oneShot.ts` for one render; Better Auth keeps the durable copies encrypted
-   (AES-256-GCM under `APP_ENCRYPTION_KEY`) and hashed.
+6. **Secrets never enter URLs or logs.** `otpauth://` URIs and recovery codes exist in plaintext
+   only in `src/lib/oneShot.ts` for one render. Better Auth encrypts its TOTP secret with
+   `SESSION_SECRET`. The custom recovery-code store uses Argon2id hashes and an
+   `AsyncLocalStorage` request adapter so Better Auth retains ownership of challenge validation,
+   lockout and session issuance without requiring reversible recovery-code storage.
 
 ## Rejected
 

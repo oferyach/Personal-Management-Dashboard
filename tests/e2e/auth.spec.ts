@@ -63,7 +63,8 @@ test("a wrong password yields localized copy plus a machine code, never a stack 
 test("a privileged account must finish MFA before the shell opens, and a fresh browser needs the factor (§12 + §22 flow 11)", async ({
   page,
   context,
-}) => {
+}, testInfo) => {
+  test.skip(testInfo.project.name !== "desktop-chromium", "stateful identity lifecycle runs once");
   await signIn(page, ADMIN_EMAIL, ADMIN_PASSWORD);
   await page.waitForURL(/\/settings\/security/);
   await expect(page.url()).toContain("reason=mfa");
@@ -75,8 +76,8 @@ test("a privileged account must finish MFA before the shell opens, and a fresh b
 
   // Start enrollment: the scan URI and the recovery codes exist on screen once.
   await fillVisibleForm(page, { password: ADMIN_PASSWORD });
-  await page.waitForURL(/\/settings\/security/);
-  await expect(page.url()).toContain("done=mfaStarted");
+  await page.waitForURL(/done=mfaStarted/);
+  await expect(page.getByAltText("קוד QR להגדרת אימות דו שלבי")).toBeVisible();
 
   const uri = await otpauthUri(page);
   await expect(uri).not.toBe("");
@@ -85,8 +86,7 @@ test("a privileged account must finish MFA before the shell opens, and a fresh b
 
   // A real RFC 6238 code proves the enrollment.
   await fillVisibleForm(page, { code: totpCode(adminTotpSecret) });
-  await page.waitForURL(/\/settings\/security/);
-  await expect(page.url()).toContain("done=mfaEnabled");
+  await page.waitForURL(/done=mfaEnabled/);
   const afterConfirm = await bodyText(page);
   await expect(afterConfirm).toContain("twoFactorEnabled=true");
   await expect(afterConfirm).not.toContain("pending_enrollment");
@@ -94,10 +94,8 @@ test("a privileged account must finish MFA before the shell opens, and a fresh b
   // Now the privileged shell is reachable.
   await page.goto("/");
   await expect(page.url()).not.toContain("/login");
-  const dashboard = await bodyText(page);
-  await expect(dashboard).toContain("super_admin");
-  await expect(await page.locator('[data-value="super_admin"]').count()).toBe(1);
-  await expect(await page.locator('a[href="/users"]').count()).toBe(1);
+  await expect(page.locator('[data-value="super_admin"]').first()).toBeVisible();
+  await expect(page.locator('a[href="/users"]').first()).toBeVisible();
 
   // A fresh browser: the password alone is no longer enough.
   await context.clearCookies();
@@ -112,7 +110,8 @@ test("a privileged account must finish MFA before the shell opens, and a fresh b
 test("the privileged admin creates a read_only account, and that account is denied the users screen (§22 flows 1 + 12)", async ({
   page,
   context,
-}) => {
+}, testInfo) => {
+  test.skip(testInfo.project.name !== "desktop-chromium", "stateful identity lifecycle runs once");
   // The admin now carries a factor, so signing in means password + code.
   await page.goto("/login");
   await fillVisibleForm(page, { email: ADMIN_EMAIL, password: ADMIN_PASSWORD });
@@ -125,23 +124,31 @@ test("the privileged admin creates a read_only account, and that account is deni
 
   const victimEmail = `e2e-victim-${tag()}@dashboard.local`;
   await fillVisibleForm(page, { name: "Nobody At All", email: victimEmail, role: "read_only" });
-  await page.waitForURL(/\/users/);
-  await expect(page.url()).toContain("done=accountCreated");
+  await page.waitForURL(/done=accountCreated/);
 
   // The generated password exists on screen exactly once; the test copies it, never stores it.
-  const generated = await page.evaluate(() => {
+  const generated = await page.evaluate((passwordPattern) => {
+    const generatedPassword = new RegExp(passwordPattern);
     for (const element of document.querySelectorAll('p[dir="ltr"]')) {
       const value = element.textContent.trim();
-      if (GENERATED_PASSWORD.test(value)) return value;
+      if (generatedPassword.test(value)) return value;
     }
     return "";
-  });
+  }, GENERATED_PASSWORD.source);
   await expect(generated).not.toBe("");
 
   await context.clearCookies();
   await signIn(page, victimEmail, generated);
   await page.waitForURL(/\/settings\/security/);
   await expect(page.url()).toContain("reason=password");
+
+  const replacement = "e2e-read-only-replacement-1";
+  await fillVisibleForm(page, {
+    currentPassword: generated,
+    newPassword: replacement,
+    confirmPassword: replacement,
+  });
+  await page.waitForURL(/done=passwordChanged/);
 
   await page.goto("/users");
   await expect(page.url()).toContain("/forbidden");
@@ -153,7 +160,8 @@ test("the privileged admin creates a read_only account, and that account is deni
 test("an ordinary account enrolls its own factor and a fresh browser needs it (§22 flow 11)", async ({
   page,
   context,
-}) => {
+}, testInfo) => {
+  test.skip(testInfo.project.name !== "desktop-chromium", "stateful identity lifecycle runs once");
   // Created through the admin UI like any other account, then used as the test subject.
   await page.goto("/login");
   await fillVisibleForm(page, { email: ADMIN_EMAIL, password: ADMIN_PASSWORD });
@@ -164,16 +172,16 @@ test("an ordinary account enrolls its own factor and a fresh browser needs it (�
   await page.goto("/users");
   const mfaEmail = `e2e-mfa-${tag()}@dashboard.local`;
   await fillVisibleForm(page, { name: "Factor Holder", email: mfaEmail, role: "user" });
-  await page.waitForURL(/\/users/);
-  await expect(page.url()).toContain("done=accountCreated");
+  await page.waitForURL(/done=accountCreated/);
 
-  const generated = await page.evaluate(() => {
+  const generated = await page.evaluate((passwordPattern) => {
+    const generatedPassword = new RegExp(passwordPattern);
     for (const element of document.querySelectorAll('p[dir="ltr"]')) {
       const value = element.textContent.trim();
-      if (GENERATED_PASSWORD.test(value)) return value;
+      if (generatedPassword.test(value)) return value;
     }
     return "";
-  });
+  }, GENERATED_PASSWORD.source);
   await expect(generated).not.toBe("");
 
   const replacement = "e2e-mfa-replacement-1";
@@ -187,20 +195,17 @@ test("an ordinary account enrolls its own factor and a fresh browser needs it (�
     newPassword: replacement,
     confirmPassword: replacement,
   });
-  await page.waitForURL(/\/settings\/security/);
-  await expect(page.url()).toContain("done=passwordChanged");
+  await page.waitForURL(/done=passwordChanged/);
 
   await fillVisibleForm(page, { password: replacement });
-  await page.waitForURL(/\/settings\/security/);
-  await expect(page.url()).toContain("done=mfaStarted");
+  await page.waitForURL(/done=mfaStarted/);
 
   const uri = await otpauthUri(page);
   await expect(uri).not.toBe("");
   const secret = secretFromTotpUri(uri);
 
   await fillVisibleForm(page, { code: totpCode(secret) });
-  await page.waitForURL(/\/settings\/security/);
-  await expect(page.url()).toContain("done=mfaEnabled");
+  await page.waitForURL(/done=mfaEnabled/);
   const afterConfirm = await bodyText(page);
   await expect(afterConfirm).toContain("twoFactorEnabled=true");
   await expect(afterConfirm).not.toContain("pending_enrollment");

@@ -34,6 +34,7 @@ export interface CurrentUser {
   id: string;
   name: string | null;
   email: string;
+  image: string | null;
   emailVerified: boolean;
   role: RoleKey;
   banned: boolean;
@@ -103,6 +104,7 @@ export function readSessionByToken(
       impersonatedBy: sessions.impersonatedBy,
       name: users.name,
       email: users.email,
+      image: users.image,
       emailVerified: users.emailVerified,
       role: users.role,
       banned: users.banned,
@@ -138,6 +140,7 @@ export function readSessionByToken(
     id: row.userId,
     name: row.name ?? null,
     email: row.email,
+    image: row.image ?? null,
     emailVerified: Boolean(row.emailVerified),
     // A null role is treated as the least privileged role: fail closed.
     role: (row.role ?? "read_only") as RoleKey,

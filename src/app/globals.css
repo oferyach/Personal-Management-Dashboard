@@ -110,8 +110,8 @@
   display: none;
 }
 
-#pmd-nav-toggle:checked ~ .pmd-shell .pmd-nav {
-  display: block;
+.pmd-nav-toggle:has(#pmd-nav-toggle:checked) ~ .pmd-shell .pmd-nav {
+  display: flex;
 }
 
 @media (min-width: 48rem) {
@@ -120,7 +120,7 @@
   }
 
   .pmd-nav {
-    display: block;
+    display: flex;
   }
 
   .pmd-nav-toggle {
@@ -131,17 +131,17 @@
     display: inline-flex;
   }
 
-  #pmd-nav-toggle:checked ~ .pmd-shell {
+  .pmd-nav-toggle:has(#pmd-nav-toggle:checked) ~ .pmd-shell {
     grid-template-columns: 15rem minmax(0, 1fr);
   }
 
-  #pmd-collapse-toggle:checked ~ .pmd-shell {
+  .pmd-collapse-toggle:has(#pmd-collapse-toggle:checked) ~ .pmd-shell {
     grid-template-columns: 3.75rem minmax(0, 1fr);
   }
 
-  #pmd-collapse-toggle:checked ~ .pmd-shell .pmd-nav-label,
-  #pmd-collapse-toggle:checked ~ .pmd-shell .pmd-nav-heading,
-  #pmd-collapse-toggle:checked ~ .pmd-shell .pmd-account-name {
+  .pmd-collapse-toggle:has(#pmd-collapse-toggle:checked) ~ .pmd-shell .pmd-nav-label,
+  .pmd-collapse-toggle:has(#pmd-collapse-toggle:checked) ~ .pmd-shell .pmd-nav-heading,
+  .pmd-collapse-toggle:has(#pmd-collapse-toggle:checked) ~ .pmd-shell .pmd-account-name {
     display: none;
   }
 }

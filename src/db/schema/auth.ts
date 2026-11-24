@@ -112,7 +112,7 @@ export const verifications = sqliteTable(
   (table) => [index("verifications_identifier_idx").on(table.identifier)],
 );
 
-/** Better Auth `twoFactor` plugin table: TOTP secret + backup codes, both encrypted at rest. */
+/** Better Auth `twoFactor` table: encrypted TOTP secret + Argon2id-hashed recovery codes. */
 export const two_factor = sqliteTable(
   "two_factor",
   {

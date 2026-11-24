@@ -111,6 +111,9 @@ export const en: Dictionary = {
     save: "Save",
     saving: "Saving…",
     cancel: "Cancel",
+    confirm: "Confirm",
+    accountAccessConfirmation:
+      "This action can change account access or revoke sessions. Continue?",
     back: "Back",
     refresh: "Refresh",
     copy: "Copy",
@@ -308,6 +311,9 @@ export const en: Dictionary = {
       title: "My profile",
       subtitle: "Personal preferences are stored per account.",
       displayName: "Display name",
+      profileImage: "Profile image",
+      profileImageHint: "PNG, JPEG or WebP, up to 2 MB. File content is validated.",
+      currentImageAlt: "Current profile image",
       language: "Interface language",
       timezone: "Time zone",
       theme: "Theme",
@@ -367,6 +373,7 @@ export const en: Dictionary = {
       enrollBody: "Scan the QR code with an authenticator app, then verify one code.",
       secretLabel: "Shared secret (shown only for manual entry)",
       totpUriLabel: "otpauth URI",
+      qrAlt: "QR code for two-factor authenticator setup",
       enableButton: "Start enrollment",
       enabling: "Enabling…",
       confirmButton: "Verify and enable",
@@ -439,6 +446,10 @@ export const en: Dictionary = {
       weakPassword: "The temporary password is too weak.",
     },
     count: "Accounts",
+    permissionMatrix: "Permission matrix",
+    permissionMatrixBody: "The active role permissions read from the database.",
+    permissions: "Permissions",
+    privileged: "Privileged role",
   },
 
   activityPage: {

@@ -1,6 +1,5 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
 import { ActionError, type NoticeCode } from "@/lib/actionError";
@@ -46,7 +45,6 @@ async function outcome(
 }
 
 function finish(result: Awaited<ReturnType<typeof outcome>>): never {
-  revalidatePath(USERS_PATH);
   redirect(`${USERS_PATH}?${new URLSearchParams(result).toString()}`);
 }
 

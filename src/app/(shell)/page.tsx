@@ -55,12 +55,15 @@ export default async function DashboardPage() {
   const { user } = await requirePageUser();
   const { dict } = await getI18n();
   const t = dict.pages.dashboard;
-  const facts = collectDashboardFacts(user.id);
   const health = getHealthSnapshot();
   const sessions = listUserSessions(user.id);
 
   const maySeeActivity = await can(user.actor, "audit.view");
   const maySeeUsers = await can(user.actor, "users.view");
+  const facts = collectDashboardFacts(user.id, {
+    includeAccountAdministration: maySeeUsers,
+    includeGlobalAudit: maySeeActivity,
+  });
 
   const roleLabels = dict.roles as Record<string, string>;
 
@@ -81,7 +84,7 @@ export default async function DashboardPage() {
               value: <span data-value={user.role}>{roleLabels[user.role] ?? user.role}</span>,
             },
             {
-              label: dict.shell.mfaOff,
+              label: dict.settings.security.mfaSection,
               value: (
                 <span data-value={String(user.twoFactorEnabled)}>
                   {user.twoFactorEnabled ? dict.shell.mfaOn : dict.shell.mfaOff}
@@ -97,34 +100,36 @@ export default async function DashboardPage() {
           title={t.securityCard}
           rows={[
             { label: t.signInCountToday, value: facts.signInAttemptsToday },
-            { label: t.activityCard, value: facts.auditRowsToday },
+            ...(maySeeActivity ? [{ label: t.activityCard, value: facts.auditRowsToday }] : []),
             {
               label: dict.pages.status.title,
               value: <span data-value={health.status}>{dict.states.health[health.status]}</span>,
             },
-            { label: t.accountsTotal, value: facts.accountsTotal },
+            ...(maySeeUsers ? [{ label: t.accountsTotal, value: facts.accountsTotal }] : []),
           ]}
         />
       </div>
 
-      <section
-        className="border-border bg-card mt-4 rounded-(--radius-card) border p-5"
-        aria-label={t.accountsByRole}
-      >
-        <h2 className="text-muted-foreground text-sm font-semibold tracking-wide uppercase">
-          {t.accountsByRole}
-        </h2>
-        <ul className="mt-3 flex flex-wrap gap-x-6 gap-y-2 text-sm">
-          {facts.accountsByRole.map((row) => (
-            <li key={row.role}>
-              <span className="text-muted-foreground">{roleLabels[row.role] ?? row.role}</span>{" "}
-              <span className="text-foreground ltr-island font-mono" dir="ltr">
-                {row.count}
-              </span>
-            </li>
-          ))}
-        </ul>
-      </section>
+      {maySeeUsers ? (
+        <section
+          className="border-border bg-card mt-4 rounded-(--radius-card) border p-5"
+          aria-label={t.accountsByRole}
+        >
+          <h2 className="text-muted-foreground text-sm font-semibold tracking-wide uppercase">
+            {t.accountsByRole}
+          </h2>
+          <ul className="mt-3 flex flex-wrap gap-x-6 gap-y-2 text-sm">
+            {facts.accountsByRole.map((row) => (
+              <li key={row.role}>
+                <span className="text-muted-foreground">{roleLabels[row.role] ?? row.role}</span>{" "}
+                <span className="text-foreground ltr-island font-mono" dir="ltr">
+                  {row.count}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
 
       <nav aria-label={t.title} className="mt-6 flex flex-wrap gap-3 text-sm">
         <a

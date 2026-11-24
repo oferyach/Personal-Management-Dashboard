@@ -77,6 +77,30 @@ export default async function ProfilePage({
               disabled={!mayEdit}
             />
             <div>
+              <label htmlFor="profileImage" className="text-muted-foreground block text-sm">
+                {p.profileImage}
+              </label>
+              {user.image ? (
+                <Image
+                  src={user.image}
+                  alt={p.currentImageAlt}
+                  width={96}
+                  height={96}
+                  unoptimized
+                  className="border-border my-2 size-24 rounded-full border object-cover"
+                />
+              ) : null}
+              <input
+                id="profileImage"
+                name="profileImage"
+                type="file"
+                accept="image/png,image/jpeg,image/webp"
+                disabled={!mayEdit}
+                className="border-border bg-background mt-1 block w-full rounded-(--radius-card) border px-3 py-2 text-sm disabled:opacity-60"
+              />
+              <p className="text-muted-foreground mt-1 text-xs">{p.profileImageHint}</p>
+            </div>
+            <div>
               <span className="text-muted-foreground block text-sm">{p.email}</span>
               <span className="text-foreground ltr-island mt-1 block font-mono text-sm" dir="ltr">
                 {user.email}
@@ -173,3 +197,4 @@ export default async function ProfilePage({
     </>
   );
 }
+import Image from "next/image";

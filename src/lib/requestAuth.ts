@@ -25,7 +25,12 @@ export const SECURITY_PATH = "/settings/security";
 export const FORBIDDEN_PATH = "/forbidden";
 
 /** Cookie names Better Auth owns with `cookiePrefix: "pmd"` (measured in 1.2). */
-const OWNED_SESSION_COOKIES = [sessionCookieName(), "pmd.session_data", "pmd.two_factor"] as const;
+const OWNED_SESSION_COOKIES = [
+  sessionCookieName(),
+  "pmd.session_data",
+  "pmd.two_factor",
+  "pmd.dont_remember",
+] as const;
 
 export async function sessionState(): Promise<SessionState> {
   const requestHeaders = await headers();
@@ -133,6 +138,16 @@ export async function resolveApiUser(permission?: PermissionKey): Promise<ApiAct
   if (state.kind === "anonymous") return { ok: false, status: 401, code: "no_session" };
   if (state.kind === "banned") return { ok: false, status: 403, code: "banned" };
   if (state.kind === "mfa_required") return { ok: false, status: 403, code: "mfa_required" };
+
+  if (
+    state.user.mustChangePassword &&
+    permission &&
+    !permission.startsWith("security.") &&
+    permission !== "profile.view_own" &&
+    permission !== "settings.view_own"
+  ) {
+    return { ok: false, status: 403, code: "missing_permission" };
+  }
 
   if (permission && !(await can(state.user.actor, permission))) {
     recordAudit({

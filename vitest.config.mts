@@ -38,6 +38,10 @@ export default defineConfig({
           include: ["tests/unit/**/*.test.ts"],
           setupFiles: ["tests/helpers/setup-unit.ts"],
           globalSetup: ["tests/helpers/globalSetup.ts"],
+          // Several security tests intentionally replace process.env and reset the
+          // configuration cache. Keep files serialized so one test cannot rotate
+          // another test's encryption key mid-assertion.
+          fileParallelism: false,
         },
       },
       {

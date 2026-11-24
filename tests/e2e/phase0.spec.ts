@@ -152,7 +152,10 @@ test("unknown routes return 404 with no stack trace", async ({ request }) => {
   expect(body).not.toContain("node_modules");
 });
 
-test("status page renders measured state on desktop and mobile viewports", async ({ page }) => {
+test("status page renders measured state on desktop and mobile viewports", async ({
+  page,
+  isMobile,
+}) => {
   const consoleErrors: string[] = [];
   page.on("console", (message) => {
     if (message.type() === "error") consoleErrors.push(message.text());
@@ -168,9 +171,22 @@ test("status page renders measured state on desktop and mobile viewports", async
   const response = await page.goto("/status");
   expect(response?.status()).toBe(200);
 
+  const sidebar = page.locator("#pmd-sidebar");
+  if (isMobile) {
+    await expect(sidebar).toBeHidden();
+    await page.locator("#pmd-nav-toggle").check();
+    await expect(sidebar).toBeVisible();
+  } else {
+    await expect(sidebar).toBeVisible();
+    const accountName = sidebar.locator(".pmd-account-name");
+    await expect(accountName).toBeVisible();
+    await page.locator("#pmd-collapse-toggle").check();
+    await expect(accountName).toBeHidden();
+  }
+
   // The landing page is Hebrew-first: labels come from the Hebrew dictionary,
   // values stay as measured machine data.
-  await expect(page.getByRole("heading", { level: 1, name: "לוח ניהול אישי" })).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1, name: "מצב מערכת" })).toBeVisible();
   await expect(page.getByRole("heading", { level: 2, name: "מסד נתונים" })).toBeVisible();
   await expect(page.getByRole("heading", { level: 2, name: "תהליך רקע" })).toBeVisible();
   await expect(page.getByText("מחובר", { exact: true })).toBeVisible();

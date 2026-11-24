@@ -9,7 +9,7 @@ import { getConfig, getEnv } from "./env";
 import { getLogger } from "./log";
 import { MAX_PASSWORD_LENGTH, MIN_PASSWORD_LENGTH, passwordHasher } from "./passwords";
 import { redact } from "./redact";
-import { backupCodeStore } from "./secretStore";
+import { backupCodeStore, withBackupCodeCandidate } from "./secretStore";
 
 /**
  * Better Auth configuration (work items 1.1, 1.2, 1.4, 1.5, 1.6).
@@ -96,12 +96,68 @@ function betterAuthRole(roleKey: keyof typeof BETTER_AUTH_ROLE_STATEMENTS) {
 
 const log = getLogger("auth");
 
+async function auditProtocolResponse(request: Request, response: Response): Promise<void> {
+  if (request.method !== "POST") return;
+  const path = new URL(request.url).pathname;
+
+  if (response.status === 429) {
+    recordAudit({
+      action: "rate_limited",
+      outcome: "denied",
+      targetKind: "auth_endpoint",
+      targetId: path,
+      detail: { status: response.status },
+      headers: request.headers,
+    });
+  }
+
+  if (path.endsWith("/sign-in/email")) {
+    if (!response.ok) {
+      recordAudit({
+        action: response.status === 429 ? "sign_in_blocked" : "sign_in_failed",
+        outcome: "failure",
+        targetKind: "auth_endpoint",
+        targetId: path,
+        detail: { status: response.status },
+        headers: request.headers,
+      });
+      return;
+    }
+    try {
+      const body = (await response.clone().json()) as { twoFactorRedirect?: boolean };
+      if (body.twoFactorRedirect) {
+        recordAudit({
+          action: "two_factor_required",
+          outcome: "info",
+          targetKind: "auth_endpoint",
+          targetId: path,
+          headers: request.headers,
+        });
+      }
+    } catch {
+      // The session-create database hook records ordinary successful sign-ins.
+    }
+    return;
+  }
+
+  if (path.endsWith("/two-factor/verify-totp") || path.endsWith("/two-factor/verify-backup-code")) {
+    recordAudit({
+      action: response.ok ? "two_factor_succeeded" : "two_factor_failed",
+      outcome: response.ok ? "success" : "failure",
+      targetKind: "auth_endpoint",
+      targetId: path,
+      detail: { status: response.status },
+      headers: request.headers,
+    });
+  }
+}
+
 function buildAuth() {
   const config = getConfig();
   const env = getEnv();
   const auth = config.auth;
 
-  return betterAuth({
+  const instance = betterAuth({
     appName: "Personal Management Dashboard",
     baseURL: config.appUrl,
     basePath: "/api/auth",
@@ -216,9 +272,9 @@ function buildAuth() {
         backupCodes: {
           amount: 10,
           length: 10,
-          // Better Auth's default stores backup codes as plain JSON. Spec §12
-          // requires recovery codes stored securely, so they use the same
-          // AES-GCM key store as every other secret in this project.
+          // Better Auth's default stores backup codes as plain JSON. The custom
+          // store uses one-way Argon2id hashes while retaining the plugin's own
+          // challenge, lockout and session-issuance protocol.
           storeBackupCodes: backupCodeStore,
         },
       }),
@@ -258,34 +314,6 @@ function buildAuth() {
           },
         },
       },
-      user: {
-        create: {
-          after: async (user) => {
-            recordAudit({
-              action: "account_created",
-              outcome: "success",
-              actorUserId: user.id,
-              targetUserId: user.id,
-              targetKind: "user",
-              targetId: user.id,
-              detail: { role: user.role },
-            });
-          },
-        },
-        update: {
-          after: async (user) => {
-            recordAudit({
-              action: "account_updated",
-              outcome: "success",
-              actorUserId: user.id,
-              targetUserId: user.id,
-              targetKind: "user",
-              targetId: user.id,
-              detail: { role: user.role, banned: user.banned },
-            });
-          },
-        },
-      },
     },
 
     logLevel: config.logLevel === "debug" ? "debug" : "info",
@@ -298,6 +326,17 @@ function buildAuth() {
       else log.info(message, safe);
     },
   });
+
+  const protocolHandler = instance.handler;
+  Object.defineProperty(instance, "handler", {
+    value: (request: Request) =>
+      withBackupCodeCandidate(request, async () => {
+        const response = await protocolHandler(request);
+        await auditProtocolResponse(request, response);
+        return response;
+      }),
+  });
+  return instance;
 }
 
 let instance: ReturnType<typeof buildAuth> | null = null;

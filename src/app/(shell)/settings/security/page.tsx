@@ -6,6 +6,7 @@ import {
   TabLinks,
   TextField,
 } from "@/components/forms";
+import { ConfirmSubmitButton } from "@/components/ConfirmSubmitButton";
 import { getI18n } from "@/i18n/requestLocale";
 import { mfaCodesKey, mfaUriKey, pendingMfaEnrollment } from "@/lib/accountSecurity";
 import { peekOnce, takeOnce } from "@/lib/oneShot";
@@ -52,6 +53,14 @@ export default async function SecurityPage({
   const pending = pendingMfaEnrollment(user.id);
   const sessions = listUserSessions(user.id);
   const codesStillQueued = peekOnce(mfaCodesKey(user.id));
+  const enrollmentUri = uriAndSecret?.[0];
+  const qrDataUrl = enrollmentUri
+    ? await QRCode.toDataURL(enrollmentUri, {
+        errorCorrectionLevel: "M",
+        margin: 1,
+        width: 240,
+      })
+    : null;
 
   return (
     <>
@@ -105,26 +114,38 @@ export default async function SecurityPage({
           </p>
 
           {uriAndSecret ? (
-            <dl className="mt-4 space-y-2 text-sm">
-              <div>
-                <dt className="text-muted-foreground">{t.totpUriLabel}</dt>
-                <dd
-                  className="text-foreground ltr-island bg-muted mt-1 rounded-(--radius-card) px-3 py-2 font-mono text-xs break-all"
-                  dir="ltr"
-                >
-                  {uriAndSecret[0]}
-                </dd>
-              </div>
-              <div>
-                <dt className="text-muted-foreground">{t.secretLabel}</dt>
-                <dd
-                  className="text-foreground ltr-island bg-muted mt-1 rounded-(--radius-card) px-3 py-2 font-mono text-xs"
-                  dir="ltr"
-                >
-                  {uriAndSecret[1]}
-                </dd>
-              </div>
-            </dl>
+            <div className="mt-4 grid items-start gap-4 sm:grid-cols-[auto_1fr]">
+              {qrDataUrl ? (
+                <Image
+                  src={qrDataUrl}
+                  alt={t.qrAlt}
+                  width={240}
+                  height={240}
+                  unoptimized
+                  className="border-border rounded-(--radius-card) border bg-white p-2"
+                />
+              ) : null}
+              <dl className="space-y-2 text-sm">
+                <div>
+                  <dt className="text-muted-foreground">{t.totpUriLabel}</dt>
+                  <dd
+                    className="text-foreground ltr-island bg-muted mt-1 rounded-(--radius-card) px-3 py-2 font-mono text-xs break-all"
+                    dir="ltr"
+                  >
+                    {uriAndSecret[0]}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-muted-foreground">{t.secretLabel}</dt>
+                  <dd
+                    className="text-foreground ltr-island bg-muted mt-1 rounded-(--radius-card) px-3 py-2 font-mono text-xs"
+                    dir="ltr"
+                  >
+                    {uriAndSecret[1]}
+                  </dd>
+                </div>
+              </dl>
+            </div>
           ) : null}
 
           {backupCodes ? (
@@ -189,7 +210,13 @@ export default async function SecurityPage({
                   autoComplete="current-password"
                   required
                 />
-                <SubmitButton label={t.regenerateButton} variant="secondary" />
+                <ConfirmSubmitButton
+                  label={t.regenerateButton}
+                  confirmLabel={dict.common.confirm}
+                  cancelLabel={dict.common.cancel}
+                  message={dict.common.accountAccessConfirmation}
+                  variant="secondary"
+                />
               </form>
               <form action={disableMfaAction} className="flex flex-wrap items-end gap-3">
                 <TextField
@@ -200,7 +227,12 @@ export default async function SecurityPage({
                   hint={t.disableBody}
                   required
                 />
-                <SubmitButton label={t.disableButton} variant="danger" />
+                <ConfirmSubmitButton
+                  label={t.disableButton}
+                  confirmLabel={dict.common.confirm}
+                  cancelLabel={dict.common.cancel}
+                  message={dict.common.accountAccessConfirmation}
+                />
               </form>
               {codesStillQueued ? (
                 <p className="text-muted-foreground text-xs">{t.backupShownOnce}</p>
@@ -274,7 +306,13 @@ export default async function SecurityPage({
                   <td className="py-2">
                     <form action={revokeOwnSessionAction}>
                       <input type="hidden" name="sessionId" value={session.id} />
-                      <SubmitButton label={t.revokeSession} variant="secondary" />
+                      <ConfirmSubmitButton
+                        label={t.revokeSession}
+                        confirmLabel={dict.common.confirm}
+                        cancelLabel={dict.common.cancel}
+                        message={dict.common.accountAccessConfirmation}
+                        variant="secondary"
+                      />
                     </form>
                   </td>
                 </tr>
@@ -283,10 +321,17 @@ export default async function SecurityPage({
           </table>
 
           <form action={signOutEverywhereAction} className="mt-4">
-            <SubmitButton label={t.revokeAll} variant="danger" />
+            <ConfirmSubmitButton
+              label={t.revokeAll}
+              confirmLabel={dict.common.confirm}
+              cancelLabel={dict.common.cancel}
+              message={dict.common.accountAccessConfirmation}
+            />
           </form>
         </SectionCard>
       </div>
     </>
   );
 }
+import Image from "next/image";
+import QRCode from "qrcode";

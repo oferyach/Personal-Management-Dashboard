@@ -130,6 +130,7 @@ export function SelectField({
   value,
   options,
   disabled,
+  required,
   hint,
 }: {
   name: string;
@@ -137,6 +138,7 @@ export function SelectField({
   value: string;
   options: Array<{ value: string; label: string }>;
   disabled?: boolean;
+  required?: boolean;
   hint?: string;
 }) {
   return (
@@ -149,6 +151,7 @@ export function SelectField({
         name={name}
         defaultValue={value}
         disabled={disabled}
+        required={required}
         className="border-border bg-background mt-1 w-full rounded-(--radius-card) border px-3 py-2 text-sm disabled:opacity-60"
       >
         {options.map((option) => (

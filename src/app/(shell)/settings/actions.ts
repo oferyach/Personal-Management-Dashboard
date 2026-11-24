@@ -1,6 +1,5 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
 import { ActionError, type NoticeCode } from "@/lib/actionError";
@@ -19,6 +18,7 @@ import {
   updateDisplayName,
 } from "@/lib/accountSecurity";
 import { getLogger } from "@/lib/log";
+import { saveProfileImage } from "@/lib/profileImage";
 import {
   ALLOWED_REMINDER_OFFSETS,
   isTheme,
@@ -59,7 +59,6 @@ function formNumber(formData: FormData, key: string): number | undefined {
 
 function redirectTo(path: string, params: Record<string, string>): never {
   const query = new URLSearchParams(params);
-  revalidatePath(path);
   redirect(`${path}?${query.toString()}`);
 }
 
@@ -125,6 +124,11 @@ export async function saveProfileAction(formData: FormData): Promise<never> {
 
     const name = formValue(formData, "name");
     if (name !== "") await updateDisplayName(ctx, name);
+
+    const profileImage = formData.get("profileImage");
+    if (profileImage instanceof File && profileImage.size > 0) {
+      await saveProfileImage(ctx, profileImage);
+    }
 
     recordAudit({
       action: "preferences_updated",
@@ -234,6 +238,5 @@ export async function signOutEverywhereAction(): Promise<never> {
     }
     return redirectTo(SECURITY_PATH, { notice });
   }
-  revalidatePath(SECURITY_PATH);
   redirect("/login?reason=signedOut");
 }

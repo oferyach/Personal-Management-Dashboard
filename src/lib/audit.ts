@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { desc, eq, or } from "drizzle-orm";
+import { and, desc, eq, or } from "drizzle-orm";
 import { getDb } from "@/db/client";
 import { audit_logs } from "@/db/schema";
 import { redact } from "./redact";
@@ -148,7 +148,10 @@ export function readAudit(query: AuditQuery): AuditEntry[] {
     return asEntry(
       select
         .where(
-          or(eq(audit_logs.actorUserId, query.userId), eq(audit_logs.targetUserId, query.userId)),
+          and(
+            or(eq(audit_logs.actorUserId, query.userId), eq(audit_logs.targetUserId, query.userId)),
+            eq(audit_logs.action, query.action),
+          ),
         )
         .orderBy(desc(audit_logs.createdAt))
         .limit(limit)

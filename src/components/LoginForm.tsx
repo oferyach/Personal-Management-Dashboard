@@ -64,7 +64,10 @@ export function LoginForm({ copy }: { copy: LoginCopy }) {
       // When twoFactorMethods is present (enrolled), go to the verification page;
       // otherwise (unenrolled) go to the dashboard — the shell will redirect to
       // the security settings for enrollment.
-      const data = result.data as { twoFactorRedirect?: boolean; twoFactorMethods?: string[] } | null;
+      const data = result.data as {
+        twoFactorRedirect?: boolean;
+        twoFactorMethods?: string[];
+      } | null;
       if (data?.twoFactorRedirect) {
         if (data?.twoFactorMethods && data.twoFactorMethods.length > 0) {
           router.push("/two-factor/verify");

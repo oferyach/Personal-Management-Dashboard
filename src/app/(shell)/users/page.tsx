@@ -6,10 +6,11 @@ import {
   SubmitButton,
   TextField,
 } from "@/components/forms";
+import { ConfirmSubmitButton } from "@/components/ConfirmSubmitButton";
 import { getI18n } from "@/i18n/requestLocale";
 import { tempPasswordKey } from "@/lib/accountSecurity";
 import { takeOnce } from "@/lib/oneShot";
-import { can, isPrivilegedRole, ROLE_KEYS } from "@/lib/rbac";
+import { can, isPrivilegedRole, readRoleMatrix, ROLE_KEYS } from "@/lib/rbac";
 import { requirePagePermission } from "@/lib/requestAuth";
 import { listManagedDirectory } from "@/lib/userAdministration";
 import {
@@ -47,6 +48,7 @@ export default async function UsersPage({
   const mayRevokeSessions = await can(user.actor, "users.revoke_sessions");
 
   const directory = listManagedDirectory();
+  const roleMatrix = await readRoleMatrix();
   const shownPassword = params.shown ? takeOnce(tempPasswordKey(params.shown)) : null;
   const shownAccount = params.shown
     ? directory.users.find((row) => row.id === params.shown)
@@ -92,6 +94,7 @@ export default async function UsersPage({
                 label={t.role}
                 value="user"
                 options={ROLE_KEYS.map((role) => ({ value: role, label: dict.roles[role] }))}
+                required
               />
               <div className="sm:col-span-3">
                 <SubmitButton label={t.createButton} />
@@ -144,7 +147,13 @@ export default async function UsersPage({
                                 </option>
                               ))}
                             </select>
-                            <SubmitButton label={t.actions.changeRole} variant="secondary" />
+                            <ConfirmSubmitButton
+                              label={t.actions.changeRole}
+                              confirmLabel={dict.common.confirm}
+                              cancelLabel={dict.common.cancel}
+                              message={dict.common.accountAccessConfirmation}
+                              variant="secondary"
+                            />
                           </form>
                         ) : (
                           <>
@@ -176,13 +185,25 @@ export default async function UsersPage({
                           {mayRevokeSessions && !isSelf ? (
                             <form action={revokeUserSessionsAction}>
                               <input type="hidden" name="userId" value={row.id} />
-                              <SubmitButton label={t.actions.revokeSessions} variant="secondary" />
+                              <ConfirmSubmitButton
+                                label={t.actions.revokeSessions}
+                                confirmLabel={dict.common.confirm}
+                                cancelLabel={dict.common.cancel}
+                                message={dict.common.accountAccessConfirmation}
+                                variant="secondary"
+                              />
                             </form>
                           ) : null}
                           {mayResetPassword && !isSelf ? (
                             <form action={resetUserPasswordAction}>
                               <input type="hidden" name="userId" value={row.id} />
-                              <SubmitButton label={t.actions.resetPassword} variant="secondary" />
+                              <ConfirmSubmitButton
+                                label={t.actions.resetPassword}
+                                confirmLabel={dict.common.confirm}
+                                cancelLabel={dict.common.cancel}
+                                message={dict.common.accountAccessConfirmation}
+                                variant="secondary"
+                              />
                             </form>
                           ) : null}
                           {mayDeactivate && !isSelf ? (
@@ -193,9 +214,12 @@ export default async function UsersPage({
                                 name="active"
                                 value={row.banned ? "true" : "false"}
                               />
-                              <SubmitButton
+                              <ConfirmSubmitButton
                                 label={row.banned ? t.actions.reactivate : t.actions.deactivate}
                                 variant={row.banned ? "secondary" : "danger"}
+                                confirmLabel={dict.common.confirm}
+                                cancelLabel={dict.common.cancel}
+                                message={dict.common.accountAccessConfirmation}
                               />
                             </form>
                           ) : null}
@@ -209,6 +233,39 @@ export default async function UsersPage({
                     </tr>
                   );
                 })}
+              </tbody>
+            </table>
+          </div>
+        </SectionCard>
+
+        <SectionCard title={t.permissionMatrix} body={t.permissionMatrixBody}>
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-150 text-sm">
+              <thead className="text-muted-foreground text-left">
+                <tr>
+                  <th className="text-start">{t.role}</th>
+                  <th className="text-start">{t.privileged}</th>
+                  <th className="text-start">{t.permissions}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {roleMatrix.map((entry) => (
+                  <tr key={entry.role} className="border-border border-t align-top">
+                    <td className="py-3">
+                      {dict.roles[entry.role]} <MachineValue value={entry.role} />
+                    </td>
+                    <td className="py-3">{entry.privileged ? dict.common.yes : dict.common.no}</td>
+                    <td className="py-3">
+                      <ul className="flex max-w-3xl flex-wrap gap-1">
+                        {entry.permissions.map((permission) => (
+                          <li key={permission}>
+                            <MachineValue value={permission} />
+                          </li>
+                        ))}
+                      </ul>
+                    </td>
+                  </tr>
+                ))}
               </tbody>
             </table>
           </div>

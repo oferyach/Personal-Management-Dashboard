@@ -32,7 +32,9 @@ export async function fillVisibleForm(
   const state = await page.evaluate((payload: Record<string, string>) => {
     const requiredOf = (form: HTMLElement): string[] =>
       Array.from(
-        form.querySelectorAll('input:not([type="submit"]):not([type="hidden"]):not([disabled])'),
+        form.querySelectorAll(
+          'input:not([type="submit"]):not([type="hidden"]):not([disabled]), select:not([disabled])',
+        ),
       )
         .filter((input) => input.hasAttribute("required"))
         .map((input) => input.getAttribute("name") ?? "")
@@ -47,20 +49,6 @@ export async function fillVisibleForm(
     const form = matches[0];
     if (!form) return { count: matches.length, wanted: key };
     form.setAttribute("data-pmd-filled", key);
-    for (const field of form.querySelectorAll("input, select")) {
-      const name = field.getAttribute("name");
-      if (!name) continue;
-      const value = payload[name];
-      if (value === undefined) continue;
-      if (field.tagName === "select") {
-        // In the browser, changing a <select> means setting its `value` slot.
-        // The cast only tells the type checker about a browser-side property.
-        const select = field as unknown as { value: string };
-        select.value = value;
-      } else {
-        field.setAttribute("value", value);
-      }
-    }
     return { count: 1, wanted: key };
   }, fields);
 
@@ -70,7 +58,17 @@ export async function fillVisibleForm(
     );
   }
 
-  const submit = page.locator("form[data-pmd-filled] button[type='submit']").first();
+  const matchedForm = page.locator("form[data-pmd-filled]").first();
+  for (const [name, value] of Object.entries(fields)) {
+    const field = matchedForm.locator(`[name=${JSON.stringify(name)}]`);
+    if ((await field.evaluate((element) => element.tagName)) === "SELECT") {
+      await field.selectOption(value);
+    } else {
+      await field.fill(value);
+    }
+  }
+
+  const submit = matchedForm.locator("button[type='submit']").first();
   await submit.click();
   return wanted;
 }

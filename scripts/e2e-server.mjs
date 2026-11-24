@@ -16,6 +16,7 @@
 import { spawn } from "node:child_process";
 import { cpSync, existsSync, rmSync } from "node:fs";
 import { resolve } from "node:path";
+import Database from "better-sqlite3";
 
 const port = Number(process.env.E2E_PORT ?? 4100);
 const standaloneDir = resolve(process.cwd(), ".next", "standalone");
@@ -31,6 +32,10 @@ const env = {
   DATABASE_PATH: databasePath,
   HOSTNAME: "127.0.0.1",
   LOG_LEVEL: process.env.E2E_LOG_LEVEL ?? "warn",
+  // Both Playwright projects share one loopback address and deliberately perform
+  // many complete sign-ins. Keep the production limiter enabled but lift its cap
+  // so the test runner itself does not become a single noisy client.
+  LOGIN_RATE_LIMIT_MAX_ATTEMPTS: "100",
   // E2E-only values: long and random-looking enough to pass production validation,
   // never used outside a local run against 127.0.0.1.
   SESSION_SECRET: "e2e-session-0f3c9a71b6d24e5f8c1a90ab65de4723c8b1f0a4d6e92753",
@@ -89,6 +94,8 @@ function main() {
     process.execPath,
     [
       resolve(process.cwd(), "node_modules/tsx/dist/cli.mjs"),
+      "--tsconfig",
+      resolve(process.cwd(), "tsconfig.json"),
       resolve(process.cwd(), "scripts/db-migrate.ts"),
       "--deploy",
     ],
@@ -104,10 +111,17 @@ function main() {
 
     if (bootstrapped)
       bootstrapAccount(adminEmail, "E2E Administrator", null, adminPassword, [], () => {
-        bootstrapAccount(observerEmail, "E2E Observer", "user", observerPassword, [
-          "--force",
-          "--confirm",
-        ], () => startServer());
+        bootstrapAccount(
+          observerEmail,
+          "E2E Observer",
+          "user",
+          observerPassword,
+          ["--force", "--confirm"],
+          () => {
+            prepareObserverFixture();
+            startServer();
+          },
+        );
       });
     else startServer();
   });
@@ -158,6 +172,25 @@ function main() {
       console.error(`e2e setup failed: admin bootstrap error ${error}`);
       process.exit(1);
     });
+  }
+
+  /**
+   * Most browser specs need a stable ordinary session rather than repeating the
+   * first-login password ceremony. The auth spec separately proves that ceremony
+   * through a user created in the UI, so this fixture-only normalization cannot
+   * hide a regression in the shipped flow.
+   */
+  function prepareObserverFixture() {
+    const absoluteDb = resolve(standaloneDir, databasePath);
+    const fixtureDb = new Database(absoluteDb);
+    try {
+      const result = fixtureDb
+        .prepare('UPDATE "users" SET must_change_password = 0 WHERE email = ?')
+        .run(observerEmail);
+      if (result.changes !== 1) throw new Error("observer fixture account was not found");
+    } finally {
+      fixtureDb.close();
+    }
   }
 
   function startServer() {
