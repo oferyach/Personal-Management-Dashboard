@@ -23,7 +23,6 @@ export function LanguageToggle({
   return (
     <form
       action={setLocaleAction}
-      method="post"
       aria-label={dict.ui.language.switchTo}
       className="border-border bg-card inline-flex items-center gap-2 rounded-full border px-1 py-1"
     >

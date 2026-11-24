@@ -11,6 +11,9 @@ const nextConfig: NextConfig = {
   output: "standalone",
   reactStrictMode: true,
   poweredByHeader: false,
+  // Local development is commonly opened through the loopback address rather
+  // than `localhost`; allow that hostname to load dev assets and Server Actions.
+  allowedDevOrigins: ["127.0.0.1"],
   // Native addon: must not be bundled by SWC/Turbopack.
   serverExternalPackages: ["better-sqlite3"],
   // Migration SQL must exist inside the standalone image so upgrades can run.

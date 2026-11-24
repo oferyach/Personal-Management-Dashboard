@@ -156,13 +156,20 @@ function buildAuth() {
   const config = getConfig();
   const env = getEnv();
   const auth = config.auth;
+  const trustedOrigins = new Set([config.appUrl]);
+  if (config.nodeEnv === "development") {
+    const publicUrl = new URL(config.appUrl);
+    const port = publicUrl.port ? `:${publicUrl.port}` : "";
+    trustedOrigins.add(`${publicUrl.protocol}//localhost${port}`);
+    trustedOrigins.add(`${publicUrl.protocol}//127.0.0.1${port}`);
+  }
 
   const instance = betterAuth({
     appName: "Personal Management Dashboard",
     baseURL: config.appUrl,
     basePath: "/api/auth",
     secret: env.sessionSecret,
-    trustedOrigins: [config.appUrl],
+    trustedOrigins: [...trustedOrigins],
 
     database: drizzleAdapter(getDb(), {
       provider: "sqlite",
