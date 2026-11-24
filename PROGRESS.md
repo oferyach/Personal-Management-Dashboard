@@ -9,13 +9,13 @@ Legend: `NOT_STARTED` · `PLANNED` · `IN_PROGRESS` · `VERIFIED` (tests execute
 
 ## Current state
 
-**Phase 0 APPROVED (2026-11-22). Phase 1 is VERIFIED and AWAITING APPROVAL (2026-11-24).** Your answers are recorded in `docs/PLAN.md` §12.1 and in the decisions log below: Hebrew stays the default with English selectable, timezone `Asia/Jerusalem`, hosting + OneDrive deferred until required, and Phase 0 committed to git.
+**Phases 0 and 1 are APPROVED. Phase 2 is planned as small local-AI packets and has not started.** Your answers are recorded in `docs/PLAN.md` §12.1 and in the decisions log below: Hebrew stays the default with English selectable, timezone `Asia/Jerusalem`, and external hosting/OneDrive credentials remain deferred until required.
 
 ```
 Phase 0  Foundation & tooling gate      APPROVED (2026-11-22) — committed
 A-1/A-2  Port 4000 + Hebrew/RTL shell   APPROVED + VERIFIED
-Phase 1  Auth, users, RBAC, MFA, shell  VERIFIED — AWAITING APPROVAL  ← gate G-1
-Phase 2  Calendar, tasks, projects,     NOT_STARTED
+Phase 1  Auth, users, RBAC, MFA, shell  DONE (approved 2026-11-24) — pushed
+Phase 2  Calendar, tasks, projects,     PLANNED as packets 2A–2T
          dashboard, activity, search
 Phase 3  SMTP, reminders, jobs, worker, NOT_STARTED
          notification centre
@@ -38,6 +38,7 @@ What exists now — real code, executed tests, measured output (no placeholders)
 | `README.md`                                                         | Untouched, byte-for-byte. sha256 re-checked 2026-11-22: `bff38cafa2617c7f1cb867af280c89a76f5bf5badede2f8b0500ff7818aa5e70` = baseline                                                                                                 |
 | Phase 1 identity and security                                       | Better Auth + Argon2id, four-role RBAC, privileged MFA policy, hashed recovery codes, session/password administration, persistent rate limits, audit trails, first-admin CLI, and append-only migration upgrade test                  |
 | Phase 1 product surface                                             | Authenticated RTL shell, working mobile/collapse navigation, profile/preferences and validated profile images, security and user administration screens, confirmation dialogs, and `/api/v1` profile/users/roles/admin/OpenAPI routes |
+| Local-AI implementation handoff                                     | `docs/LOCAL_AI_ROADMAP.md` splits Phases 2–6 into 58 independently testable packets; `docs/prompts/` contains one self-contained copy/paste prompt per packet, verified by `npm run prompts:check`                                    |
 
 ---
 
@@ -45,37 +46,43 @@ What exists now — real code, executed tests, measured output (no placeholders)
 
 Updated at each gate. IDs match `docs/PLAN.md`.
 
-| ID       | Item                                                        | Status       | Verified by                                                                                                                                       |
-| -------- | ----------------------------------------------------------- | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------- |
-| P.0      | Read spec, audit environment, write plan + architecture     | **VERIFIED** | commands below (2026-11-22)                                                                                                                       |
-| 0.1–0.6  | Repo/tooling/gate skeleton                                  | **VERIFIED** | Gate G-0 run, 2026-11-22 (commands + output below)                                                                                                |
-| A-1      | Local port 4000 (was 3000 — occupied here by another site)  | **VERIFIED** | `npm run dev` → `http://localhost:4000` HTTP 200; `tests/unit/env.test.ts`, `tests/unit/csp.test.ts`, E2E on 4100/4111                            |
-| A-2      | Hebrew primary + RTL, English secondary                     | **VERIFIED** | `tests/unit/i18n.test.ts` (18 tests), `tests/e2e/i18n.spec.ts` (6 tests × desktop+mobile), live `curl` check of `lang="he-IL" dir="rtl"`          |
-| 1.1–1.12 | Foundation / auth / RBAC / MFA / shell / settings           | **VERIFIED** | 17 Vitest files / 93 tests; production build; 54 Playwright tests (51 passed, 3 stateful mobile duplicates intentionally skipped); evidence below |
-| 2.1–2.12 | Calendar / tasks / projects / dashboard / activity / search | NOT_STARTED  | —                                                                                                                                                 |
-| 3.1–3.9  | SMTP / reminders / job subsystem / worker / notifications   | NOT_STARTED  | —                                                                                                                                                 |
-| 4.1–4.8  | Asset management                                            | NOT_STARTED  | —                                                                                                                                                 |
-| 5.1–5.9  | OneDrive integration                                        | NOT_STARTED  | —                                                                                                                                                 |
-| 6.1–6.7  | Production readiness                                        | NOT_STARTED  | —                                                                                                                                                 |
+| ID       | Item                                                        | Status              | Verified by                                                                                                                                                                 |
+| -------- | ----------------------------------------------------------- | ------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| P.0      | Read spec, audit environment, write plan + architecture     | **VERIFIED**        | commands below (2026-11-22)                                                                                                                                                 |
+| 0.1–0.6  | Repo/tooling/gate skeleton                                  | **VERIFIED**        | Gate G-0 run, 2026-11-22 (commands + output below)                                                                                                                          |
+| A-1      | Local port 4000 (was 3000 — occupied here by another site)  | **VERIFIED**        | `npm run dev` → `http://localhost:4000` HTTP 200; `tests/unit/env.test.ts`, `tests/unit/csp.test.ts`, E2E on 4100/4111                                                      |
+| A-2      | Hebrew primary + RTL, English secondary                     | **VERIFIED**        | `tests/unit/i18n.test.ts` (18 tests), `tests/e2e/i18n.spec.ts` (6 tests × desktop+mobile), live `curl` check of `lang="he-IL" dir="rtl"`                                    |
+| 1.1–1.12 | Foundation / auth / RBAC / MFA / shell / settings           | **DONE (approved)** | User verified login, MFA, and navigation; 17 Vitest files / 93 tests; production build; 54 Playwright tests (51 passed, 3 stateful mobile duplicates intentionally skipped) |
+| 2.1–2.12 | Calendar / tasks / projects / dashboard / activity / search | NOT_STARTED         | —                                                                                                                                                                           |
+| 3.1–3.9  | SMTP / reminders / job subsystem / worker / notifications   | NOT_STARTED         | —                                                                                                                                                                           |
+| 4.1–4.8  | Asset management                                            | NOT_STARTED         | —                                                                                                                                                                           |
+| 5.1–5.9  | OneDrive integration                                        | NOT_STARTED         | —                                                                                                                                                                           |
+| 6.1–6.7  | Production readiness                                        | NOT_STARTED         | —                                                                                                                                                                           |
 
 ---
 
 ## Gate queue (approval protocol)
 
-| Gate       | Contents                                                                                                        | Status                         | Your decision                      |
-| ---------- | --------------------------------------------------------------------------------------------------------------- | ------------------------------ | ---------------------------------- |
-| G-P (plan) | `docs/PLAN.md`, `docs/ARCHITECTURE.md`, 4 open questions (Docker, README handling, external creds, target host) | **APPROVED (2026-11-22)**      | given; Q3/Q4 deferred, Q5 answered |
-| G-0        | install / typecheck / lint / unit smoke / build / start / health 200 / no-secrets-in-git                        | **PASSED → APPROVED**          | given 2026-11-22                   |
-| G-1        | auth+RBAC+MFA integration suite, isolation suite, E2E flows 1,2,11,12                                           | **PASSED — AWAITING APPROVAL** | —                                  |
-| G-2        | recurrence unit matrix, CRUD/isolation integration, E2E 3–8 desktop+mobile                                      | NOT_RUN                        | —                                  |
-| G-3        | restart-durability test, dedupe/no-double-send test, mock SMTP delivery, E2E 9,10,14                            | NOT_RUN                        | —                                  |
-| G-4        | index/browse/bulk-edit integration, originals-unchanged checksum test, E2E asset flows                          | NOT_RUN                        | —                                  |
-| G-5        | mocked-Graph integration (pagination, 429/Retry-After, resume), E2E 13, degraded-without-creds test             | NOT_RUN                        | —                                  |
-| G-6        | full `npm run verify`, security review, backup/restore run, docs, spec §26 checklist                            | NOT_RUN                        | —                                  |
+| Gate       | Contents                                                                                                        | Status                    | Your decision                                                               |
+| ---------- | --------------------------------------------------------------------------------------------------------------- | ------------------------- | --------------------------------------------------------------------------- |
+| G-P (plan) | `docs/PLAN.md`, `docs/ARCHITECTURE.md`, 4 open questions (Docker, README handling, external creds, target host) | **APPROVED (2026-11-22)** | given; Q3/Q4 deferred, Q5 answered                                          |
+| G-0        | install / typecheck / lint / unit smoke / build / start / health 200 / no-secrets-in-git                        | **PASSED → APPROVED**     | given 2026-11-22                                                            |
+| G-1        | auth+RBAC+MFA integration suite, isolation suite, E2E flows 1,2,11,12                                           | **PASSED → APPROVED**     | user validated login/MFA/navigation and requested GitHub commit, 2026-11-24 |
+| G-2        | recurrence unit matrix, CRUD/isolation integration, E2E 3–8 desktop+mobile                                      | NOT_RUN                   | —                                                                           |
+| G-3        | restart-durability test, dedupe/no-double-send test, mock SMTP delivery, E2E 9,10,14                            | NOT_RUN                   | —                                                                           |
+| G-4        | index/browse/bulk-edit integration, originals-unchanged checksum test, E2E asset flows                          | NOT_RUN                   | —                                                                           |
+| G-5        | mocked-Graph integration (pagination, 429/Retry-After, resume), E2E 13, degraded-without-creds test             | NOT_RUN                   | —                                                                           |
+| G-6        | full `npm run verify`, security review, backup/restore run, docs, spec §26 checklist                            | NOT_RUN                   | —                                                                           |
 
 ---
 
 ## Log (append-only, newest first)
+
+### 2026-11-24 — Phase 1 accepted, pushed, and local-AI roadmap prepared
+
+The user validated the real local flow (login, MFA enrollment, and authenticated navigation) and requested the result be committed to GitHub. Gate G-1 is therefore approved. The verified history was pushed to `main` at `https://github.com/oferyach/Personal-Management-Dashboard` (`4bee35f`).
+
+Phases 2–6 are now decomposed in `docs/LOCAL_AI_ROADMAP.md` into 58 independently testable, one-commit packets: 2A–2T, 3A–3J, 4A–4J, 5A–5J, and 6A–6H. The playbook includes context limits, migration/authorization rules, per-packet tests and commit boundaries, model capability tiers, escalation triggers, macro gates, and a standard handoff format.
 
 ### 2026-11-24 — Phase 1 implemented; Gate G-1 PASSED and awaits approval
 
@@ -223,13 +230,9 @@ Explicitly **not** done, on purpose: no `package.json`, no dependencies installe
 
 **Answered 2026-11-22 with the Phase 0 approval:** Q3 → hosting and OneDrive “will come when required”, so both integrations are built behind their adapter interface and mocked in tests, never activated and never claimed as verified. Q4 → deferred; no phase blocks on a hostname. Q5 → **Hebrew stays the default language, English remains selectable**. Q6 → **yes, commit Phase 0** (done: see the log entry below). Timezone → **`Asia/Jerusalem` confirmed** (D-5 closed). Still open: Q1 (Docker locally) and Q2 (README normalization).
 
-## Next action (after your approval)
+## Next action
 
-Gate **G-0 has been run and passed** (evidence above), including both amendments. Now waiting on you:
-
-1. **Gate G-0 sign-off** → then Phase 1 (1.1–1.12): auth spike + ADR-0001, users/RBAC/MFA schema, first-admin CLI, session hardening, and the **RTL-first app shell** whose Hebrew menu labels already exist in `he.nav`.
-2. **D-11 nod** — first-party typed dictionaries instead of `next-intl`.
-3. **Q5** (keep English selectable?) and **Q6** (make the first commit?).
+Start only **packet 2A — Shared productivity vocabulary and schema** from `docs/LOCAL_AI_ROADMAP.md`. Complete its micro-gate and green commit before opening 2B. Do not ask a local AI to implement all of Phase 2 in one task.
 
 Current truth for running it locally:
 
@@ -240,4 +243,4 @@ npm run test:e2e     → real production artifact on 127.0.0.1:4100 (+ 4111 for 
 npm run healthcheck  → http://127.0.0.1:${PORT:-4000}/health
 ```
 
-Explicitly **not** done, on purpose: no auth, no users, no calendar/tasks/projects/assets code, no SMTP, no OneDrive, no Docker verification. Phase 0 is foundation only — nothing in the UI pretends to be a feature that has not been built.
+Explicitly **not** done yet: calendar/tasks/projects/dashboard/activity/search (Phase 2), SMTP/reminders/worker (Phase 3), assets (Phase 4), OneDrive (Phase 5), and production verification (Phase 6). Placeholder screens must not claim these features work before their packets pass.

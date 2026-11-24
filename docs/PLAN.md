@@ -1,6 +1,8 @@
 # Implementation Plan — Personal Management Dashboard
 
-Status: **Phase 0 implemented and gate-verified (see `PROGRESS.md`).** Plan approved as amended;
+For execution by a smaller/local coding model, use `docs/LOCAL_AI_ROADMAP.md`. It divides Phases 2–6 into independently testable, one-commit packets while keeping this document as the high-level roadmap.
+
+Status: **Phases 0–1 implemented and approved; Phase 2 planned (see `PROGRESS.md`).** Plan approved as amended;
 source of truth: `README.md` (spec, 27 sections, 3042 lines) **plus the binding amendments in §0A**.
 Plan authored 2026-11-22; amendments recorded 2026-11-22.
 
@@ -163,7 +165,7 @@ Estimated size: small.
 
 ## 5. Phase 1 — Foundation: auth, users, RBAC, MFA, shell, settings
 
-**Status: VERIFIED 2026-11-24; Gate G-1 passed and is AWAITING APPROVAL.** SMTP-backed email reset remains intentionally assigned to Phase 3; Phase 1 ships the documented administrator reset plus forced first-login change path.
+**Status: DONE (approved 2026-11-24).** The user verified login, MFA enrollment, and authenticated navigation before requesting the GitHub commit. SMTP-backed email reset remains intentionally assigned to Phase 3; Phase 1 ships the documented administrator reset plus forced first-login change path.
 
 Objective: locked, secure, multi-user app shell. After this phase everything else is built inside a working auth/authorization boundary.
 
