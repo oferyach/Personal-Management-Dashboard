@@ -38,6 +38,7 @@ What exists now — real code, executed tests, measured output (no placeholders)
 | `README.md`                                                         | Untouched, byte-for-byte. sha256 re-checked 2026-11-22: `bff38cafa2617c7f1cb867af280c89a76f5bf5badede2f8b0500ff7818aa5e70` = baseline                                                                                                 |
 | Phase 1 identity and security                                       | Better Auth + Argon2id, four-role RBAC, privileged MFA policy, hashed recovery codes, session/password administration, persistent rate limits, audit trails, first-admin CLI, and append-only migration upgrade test                  |
 | Phase 1 product surface                                             | Authenticated RTL shell, working mobile/collapse navigation, profile/preferences and validated profile images, security and user administration screens, confirmation dialogs, and `/api/v1` profile/users/roles/admin/OpenAPI routes |
+| Local-AI implementation handoff                                     | `docs/LOCAL_AI_ROADMAP.md` splits Phases 2–6 into 58 independently testable packets; `docs/prompts/` contains one self-contained copy/paste prompt per packet, verified by `npm run prompts:check`                                    |
 
 ---
 

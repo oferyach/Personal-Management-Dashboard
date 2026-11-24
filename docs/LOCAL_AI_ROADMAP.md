@@ -2,6 +2,8 @@
 
 Status: execution playbook for the remaining roadmap. Phase 1 is the stable base. The normative product requirements remain in `README.md`; `docs/PLAN.md` remains the high-level phase plan; this file defines small implementation and verification boundaries for a local AI.
 
+Ready-to-copy, self-contained prompts for every packet are indexed in `docs/prompts/README.md`. Packet 2A is hand-authored in extra detail; the other 57 prompts are deterministically generated from this roadmap.
+
 ## 1. Why this plan exists
 
 The original Phases 2–6 are too large for a smaller model to hold in working memory. This roadmap divides them into packets that:
