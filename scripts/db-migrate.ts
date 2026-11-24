@@ -36,6 +36,10 @@ function main(): void {
     durationMs: result.durationMs,
     database: env.paths.databaseDisplay,
     mode: deploy ? "deploy" : env.nodeEnv,
+    roles: result.seed.rolesWritten,
+    permissions: result.seed.permissionsWritten,
+    grantsAdded: result.seed.grantsAdded,
+    grantsRemoved: result.seed.grantsRemoved,
   });
 }
 

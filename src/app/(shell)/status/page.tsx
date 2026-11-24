@@ -1,8 +1,11 @@
+import Link from "next/link";
+
 import { LanguageToggle } from "@/i18n/LanguageToggle";
 import { getI18n } from "@/i18n/requestLocale";
 import { dirOf } from "@/i18n/locales";
 import { getConfig, getEnvWarnings } from "@/lib/env";
 import { getHealthSnapshot } from "@/lib/health";
+import { requirePageUser } from "@/lib/requestAuth";
 import { isProduction } from "@/lib/runtime";
 
 export const dynamic = "force-dynamic";
@@ -80,14 +83,15 @@ function Card({
 }
 
 /**
- * Phase 0 landing page: shows only measured runtime state.
- * Replaced by the real authenticated dashboard in Phase 2 (spec §5).
+ * System status (moved behind the login when the Phase 1 shell arrived, so raw
+ * infrastructure facts are not public). Only measured runtime state is shown.
  * Status data is measured per request; a build-time snapshot would be a lie.
  *
  * Text layer: Hebrew (primary). Only presentation strings come from the
  * dictionary; every value is raw data from the process or the database.
  */
 export default async function StatusPage() {
+  await requirePageUser();
   const env = getConfig();
   const health = getHealthSnapshot();
   const warnings = isProduction() ? [] : getEnvWarnings();
@@ -96,17 +100,17 @@ export default async function StatusPage() {
   const s = dict.states;
 
   return (
-    <main className="mx-auto w-full max-w-5xl px-5 py-10 sm:px-8">
+    <>
       <header className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">{dict.app.name}</h1>
-          <p className="text-muted-foreground mt-1 text-sm">{dict.app.phaseNote}</p>
+          <h1 className="text-2xl font-semibold tracking-tight">{dict.pages.status.title}</h1>
+          <p className="text-muted-foreground mt-1 text-sm">{dict.pages.status.subtitle}</p>
         </div>
         <div className="flex items-center gap-3">
           <Badge tone={health.status === "ok" ? "ok" : "warn"} value={health.status}>
             {s.health[health.status]}
           </Badge>
-          <LanguageToggle locale={locale} dict={dict} nextPath="/" />
+          <LanguageToggle locale={locale} dict={dict} nextPath="/status" />
         </div>
       </header>
 
@@ -233,6 +237,9 @@ export default async function StatusPage() {
         <a className="text-accent underline underline-offset-4" href="/api/v1/health">
           {t.footer.healthLink}
         </a>
+        <Link className="text-accent underline underline-offset-4" href="/">
+          {dict.pages.dashboard.title}
+        </Link>
         <span>
           {t.footer.nextPhase}{" "}
           <code className="font-mono" dir="ltr">
@@ -241,6 +248,6 @@ export default async function StatusPage() {
           .
         </span>
       </footer>
-    </main>
+    </>
   );
 }

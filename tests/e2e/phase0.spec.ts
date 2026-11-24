@@ -1,5 +1,6 @@
 import { execFileSync } from "node:child_process";
 import { expect, test } from "@playwright/test";
+import { OBSERVER_EMAIL, OBSERVER_PASSWORD, signIn } from "./helpers";
 
 /**
  * Phase 0 gate: the production server must prove it is real.
@@ -158,7 +159,13 @@ test("status page renders measured state on desktop and mobile viewports", async
   });
   page.on("pageerror", (error) => consoleErrors.push(String(error)));
 
-  const response = await page.goto("/");
+  // Under Phase 1 the status screen sits behind the login (raw infrastructure facts
+  // are not public), so the test signs in through the visible form first as an ordinary
+  // account: the status screen needs a session, not a privileged role.
+  await signIn(page, OBSERVER_EMAIL, OBSERVER_PASSWORD);
+  await page.waitForURL(/^http:\/\/127\.0\.0\.1:\d+\/$/);
+
+  const response = await page.goto("/status");
   expect(response?.status()).toBe(200);
 
   // The landing page is Hebrew-first: labels come from the Hebrew dictionary,

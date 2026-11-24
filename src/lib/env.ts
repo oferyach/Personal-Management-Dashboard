@@ -67,6 +67,57 @@ const configSchema = z.object({
     .string()
     .regex(HEX_32_BYTES, "must be 32 random bytes as 64 hex characters")
     .optional(),
+  // Argon2id parameters (spec §10: the choice must be recorded, §12: Argon2id).
+  // Defaults are the OWASP baseline for interactive logins; raising them is an
+  // env change, not a code change, and old hashes keep verifying because the PHC
+  // string carries the parameters that produced them.
+  ARGON2_MEMORY_KIB: z.coerce.number().int().min(8_192).max(1_048_576).default(19_456),
+  ARGON2_TIME_COST: z.coerce.number().int().min(1).max(20).default(2),
+  ARGON2_PARALLELISM: z.coerce.number().int().min(1).max(16).default(1),
+  // Session lifetime and sliding renewal (spec §20: expiration + revocation).
+  SESSION_TTL_SECONDS: z.coerce
+    .number()
+    .int()
+    .min(300)
+    .max(30 * 24 * 3600)
+    .default(8 * 3600),
+  SESSION_UPDATE_AGE_SECONDS: z.coerce
+    .number()
+    .int()
+    .min(60)
+    .max(24 * 3600)
+    .default(3600),
+  /** Privileged actions require a session fresher than this (spec §12 MFA policy). */
+  SESSION_FRESH_AGE_SECONDS: z.coerce
+    .number()
+    .int()
+    .min(60)
+    .max(24 * 3600)
+    .default(900),
+  // Rate limiting is stored in the database, not in process memory (spec §12).
+  RATE_LIMIT_WINDOW_SECONDS: z.coerce
+    .number()
+    .int()
+    .min(10)
+    .max(24 * 3600)
+    .default(600),
+  RATE_LIMIT_MAX_REQUESTS: z.coerce.number().int().min(1).max(10_000).default(100),
+  LOGIN_RATE_LIMIT_WINDOW_SECONDS: z.coerce
+    .number()
+    .int()
+    .min(10)
+    .max(24 * 3600)
+    .default(900),
+  LOGIN_RATE_LIMIT_MAX_ATTEMPTS: z.coerce.number().int().min(1).max(1_000).default(10),
+  TOTP_ISSUER: z.string().min(1).default("Personal Management Dashboard"),
+  MFA_MAX_FAILED_ATTEMPTS: z.coerce.number().int().min(1).max(100).default(10),
+  MFA_LOCKOUT_SECONDS: z.coerce
+    .number()
+    .int()
+    .min(60)
+    .max(24 * 3600)
+    .default(900),
+  MFA_REQUIRED_FOR_PRIVILEGED_ROLES: z.enum(["true", "false"]).default("true"),
 });
 
 type RawEnv = Record<string, string | undefined>;
@@ -99,6 +150,20 @@ export interface OnedriveConfig {
   redirectPath: string;
 }
 
+export interface AuthSettings {
+  argon2: { memoryCostKiB: number; timeCost: number; parallelism: number };
+  session: { expiresInSec: number; updateAgeSec: number; freshAgeSec: number };
+  rateLimit: {
+    windowSec: number;
+    maxRequests: number;
+    loginWindowSec: number;
+    loginMaxAttempts: number;
+  };
+  twoFactor: { issuer: string; maxFailedAttempts: number; lockoutSeconds: number };
+  /** Spec §12 policy: privileged roles cannot act without an enrolled authenticator. */
+  privilegedRolesRequireMfa: boolean;
+}
+
 export interface AppConfig {
   nodeEnv: NodeEnv;
   isProduction: boolean;
@@ -113,6 +178,7 @@ export interface AppConfig {
   paths: AppPaths;
   smtp: SmtpConfig | null;
   onedrive: OnedriveConfig | null;
+  auth: AuthSettings;
 }
 
 export interface AppEnv extends AppConfig {
@@ -255,6 +321,30 @@ function toConfig(data: ConfigInput, paths: AppPaths, warnings: string[]): AppCo
             redirectPath: data.GRAPH_REDIRECT_PATH,
           }
         : null,
+    auth: {
+      argon2: {
+        memoryCostKiB: data.ARGON2_MEMORY_KIB,
+        timeCost: data.ARGON2_TIME_COST,
+        parallelism: data.ARGON2_PARALLELISM,
+      },
+      session: {
+        expiresInSec: data.SESSION_TTL_SECONDS,
+        updateAgeSec: data.SESSION_UPDATE_AGE_SECONDS,
+        freshAgeSec: data.SESSION_FRESH_AGE_SECONDS,
+      },
+      rateLimit: {
+        windowSec: data.RATE_LIMIT_WINDOW_SECONDS,
+        maxRequests: data.RATE_LIMIT_MAX_REQUESTS,
+        loginWindowSec: data.LOGIN_RATE_LIMIT_WINDOW_SECONDS,
+        loginMaxAttempts: data.LOGIN_RATE_LIMIT_MAX_ATTEMPTS,
+      },
+      twoFactor: {
+        issuer: data.TOTP_ISSUER,
+        maxFailedAttempts: data.MFA_MAX_FAILED_ATTEMPTS,
+        lockoutSeconds: data.MFA_LOCKOUT_SECONDS,
+      },
+      privilegedRolesRequireMfa: data.MFA_REQUIRED_FOR_PRIVILEGED_ROLES === "true",
+    },
   };
 }
 

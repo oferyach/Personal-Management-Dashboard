@@ -49,6 +49,10 @@ const config = [
               ],
               message:
                 "UI may not access the database directly. Call a service via an API route (docs/ARCHITECTURE.md §1).",
+              // Types are erased at compile time: `import type { RoleKey } from "@/db/schema/identity"`
+              // cannot open a connection or run a query, so shared row/role types may cross the
+              // boundary. Runtime imports of @/db/** stay an error.
+              allowTypeImports: true,
             },
           ],
         },

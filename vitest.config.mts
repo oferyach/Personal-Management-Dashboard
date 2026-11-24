@@ -3,7 +3,15 @@ import { defineConfig } from "vitest/config";
 
 const srcRoot = resolve(import.meta.dirname, "src");
 
-const alias = { "@": srcRoot };
+/**
+ * `server-only` is Next's import marker, not an installed package: the real build
+ * resolves it to an empty module. Tests that import the service layer need the same
+ * resolution, otherwise the marker itself is the only thing that fails (see the file).
+ */
+const alias = {
+  "@": srcRoot,
+  "server-only": resolve(import.meta.dirname, "tests/helpers/serverOnlyEmpty.ts"),
+};
 
 /**
  * Two projects, because unit tests and integration tests have different needs:

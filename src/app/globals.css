@@ -83,3 +83,77 @@
     }
   }
 }
+
+/*
+ * Phase 1 app shell (spec §4 navigation).
+ *
+ * The sidebar collapse and the mobile menu are real checkboxes: they work with
+ * keyboard only, need no JavaScript, and are testable from Playwright. Because the
+ * grid follows the writing direction, the sidebar sits on the inline-start edge —
+ * the right side in Hebrew, the left side in English — without a second stylesheet.
+ */
+.pmd-shell {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  min-height: 100vh;
+}
+
+.pmd-nav {
+  display: none;
+}
+
+.pmd-nav-toggle {
+  display: inline-flex;
+}
+
+.pmd-collapse-toggle {
+  display: none;
+}
+
+#pmd-nav-toggle:checked ~ .pmd-shell .pmd-nav {
+  display: block;
+}
+
+@media (min-width: 48rem) {
+  .pmd-shell {
+    grid-template-columns: 15rem minmax(0, 1fr);
+  }
+
+  .pmd-nav {
+    display: block;
+  }
+
+  .pmd-nav-toggle {
+    display: none;
+  }
+
+  .pmd-collapse-toggle {
+    display: inline-flex;
+  }
+
+  #pmd-nav-toggle:checked ~ .pmd-shell {
+    grid-template-columns: 15rem minmax(0, 1fr);
+  }
+
+  #pmd-collapse-toggle:checked ~ .pmd-shell {
+    grid-template-columns: 3.75rem minmax(0, 1fr);
+  }
+
+  #pmd-collapse-toggle:checked ~ .pmd-shell .pmd-nav-label,
+  #pmd-collapse-toggle:checked ~ .pmd-shell .pmd-nav-heading,
+  #pmd-collapse-toggle:checked ~ .pmd-shell .pmd-account-name {
+    display: none;
+  }
+}
+
+.skip-link {
+  position: absolute;
+  inset-inline-start: 0.5rem;
+  inset-block-start: 0.5rem;
+  z-index: 50;
+  transform: translateY(-200%);
+}
+
+.skip-link:focus-visible {
+  transform: none;
+}

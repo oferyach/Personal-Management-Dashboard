@@ -1,7 +1,7 @@
 import { rmSync } from "node:fs";
 import { resolve } from "node:path";
-import { migrate } from "drizzle-orm/better-sqlite3/migrator";
-import { closeDatabase, openDatabase } from "@/db/client";
+import { closeDatabase } from "@/db/client";
+import { runMigrations } from "@/db/migrate";
 import { resetEnvCache } from "@/lib/env";
 
 /**
@@ -35,9 +35,15 @@ export function configureTestEnv(scope: string): void {
   resetEnvCache();
 }
 
+/**
+ * Tests use the production migration path — including the RBAC seed — so a
+ * schema/seed problem can never appear in only one of the two worlds.
+ */
 export function applyMigrations(): void {
-  const { db } = openDatabase();
-  migrate(db, { migrationsFolder });
+  const result = runMigrations();
+  if (!result.ok) {
+    throw new Error(`test database migrations failed: ${result.folder}`);
+  }
 }
 
 export function resetTestDatabase(scope: string): void {

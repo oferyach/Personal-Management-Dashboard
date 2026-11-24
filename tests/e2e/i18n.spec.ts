@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { OBSERVER_EMAIL, OBSERVER_PASSWORD, signIn } from "./helpers";
 
 /**
  * Hebrew-first + RTL gate (spec §4 as amended 2026-11-22).
@@ -50,10 +51,9 @@ test("switching language flips dir and persists the choice in a cookie", async (
 
   await expect(page.locator("html")).toHaveAttribute("dir", "ltr");
   await expect(page.locator("html")).toHaveAttribute("lang", "en");
-  await expect(
-    page.getByRole("heading", { level: 1, name: "Personal Management Dashboard" }),
-  ).toBeVisible();
-  await expect(page.getByRole("heading", { level: 2, name: "Database" })).toBeVisible();
+  // Under Phase 1 the anonymous page is the login screen, and it is localized too.
+  await expect(page.getByRole("heading", { level: 1, name: "Sign in" })).toBeVisible();
+  await expect(page.getByText("This is the sign-in page", { exact: false })).toBeVisible();
 
   const [cookie] = await context
     .cookies()
@@ -111,7 +111,10 @@ test("an invalid or hostile locale value falls back to Hebrew", async ({ browser
 });
 
 test("measured values stay LTR inside the RTL page", async ({ page }) => {
-  await page.goto("/");
+  // The status screen carries the measured values, and Phase 1 puts it behind the login.
+  await signIn(page, OBSERVER_EMAIL, OBSERVER_PASSWORD);
+  await page.waitForURL(/^http:\/\/127\.0\.0\.1:\d+\/$/);
+  await page.goto("/status");
 
   const fileValue = page.locator('dd[dir="ltr"]', { hasText: "./data/e2e-4100.db" });
   await expect(fileValue.first()).toBeVisible();

@@ -7,6 +7,12 @@ export default async function globalSetup(): Promise<() => void> {
   rmSync(dir, { recursive: true, force: true });
 
   return () => {
-    rmSync(dir, { recursive: true, force: true });
+    try {
+      rmSync(dir, { recursive: true, force: true });
+    } catch {
+      // Windows can still hold a SQLite handle for a moment after a worker exits.
+      // The directory is git-ignored scratch space, so leaving it is not a failure.
+      console.warn(`[vitest] could not remove ${dir}; it is scratch space and git-ignored.`);
+    }
   };
 }

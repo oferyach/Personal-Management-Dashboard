@@ -2,6 +2,7 @@ import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 import { migrate } from "drizzle-orm/better-sqlite3/migrator";
 import { getSqlite, openDatabase } from "@/db/client";
+import { seedRbac, type SeedResult } from "@/db/seed/rbac";
 import { getLogger } from "@/lib/log";
 
 /**
@@ -19,6 +20,8 @@ export interface MigrationResult {
   durationMs: number;
   folder: string;
   folderMissing: boolean;
+  /** RBAC rows converged during this run. */
+  seed: SeedResult;
 }
 
 function countApplied(): number {
@@ -38,6 +41,16 @@ function stampInstalledMarker(): void {
   stmt.run("app.migrations_last_run", now, now);
 }
 
+/**
+ * Migrations and the RBAC seed are one step on purpose.
+ *
+ * `users.role` has a foreign key to `roles.key`, so an account can only be
+ * created after the four roles exist. Making the seed part of the single
+ * migration path means no caller (CLI, worker, test, container entrypoint) can
+ * forget it and end up with a database where sign-up fails with an opaque
+ * SQLITE_CONSTRAINT_FOREIGNKEY. `seedRbac()` is converging and idempotent, so
+ * running it on every boot is safe.
+ */
 export function runMigrations(): MigrationResult {
   const logger = getLogger("db:migrate");
   const folder = migrationsFolder();
@@ -46,7 +59,14 @@ export function runMigrations(): MigrationResult {
     logger.warn(
       `Migration folder not found: ${folder}. Run "npm run db:generate" after changing src/db/schema (spec §13).`,
     );
-    return { ok: false, applied: 0, durationMs: 0, folder, folderMissing: true };
+    return {
+      ok: false,
+      applied: 0,
+      durationMs: 0,
+      folder,
+      folderMissing: true,
+      seed: { rolesWritten: 0, permissionsWritten: 0, grantsAdded: 0, grantsRemoved: 0 },
+    };
   }
 
   const { db } = openDatabase();
@@ -54,6 +74,7 @@ export function runMigrations(): MigrationResult {
 
   migrate(db, { migrationsFolder: folder });
   stampInstalledMarker();
+  const seed = seedRbac();
 
   return {
     ok: true,
@@ -61,5 +82,6 @@ export function runMigrations(): MigrationResult {
     durationMs: Date.now() - started,
     folder,
     folderMissing: false,
+    seed,
   };
 }

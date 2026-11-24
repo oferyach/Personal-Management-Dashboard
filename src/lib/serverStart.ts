@@ -1,3 +1,4 @@
+import { bootstrapState } from "@/lib/adminBootstrap";
 import { closeDatabase, openDatabase } from "@/db/client";
 import { runMigrations } from "@/db/migrate";
 import { getConfig, getEnv, getEnvWarnings, secretReadiness } from "@/lib/env";
@@ -80,6 +81,20 @@ export function startServerRuntime(exit: ExitFn = (code) => process.exit(code)):
     onedrive: env.onedrive ? "configured" : "not_configured",
     generatedThrowawayKeys: env.secretsWereGenerated,
   });
+
+  // 1.3 startup guard. An install with accounts but nobody who can administer them is
+  // a real state (an account was created, then its admin was demoted or blocked), and
+  // it must be stated out loud rather than discovered by someone clicking a Users
+  // link that renders nothing. Nothing here invents an account: no default credential
+  // is created, and `authorize()` already refuses every privileged permission because
+  // no account holds a privileged role.
+  const install = bootstrapState();
+  if (install.privilegedMissing) {
+    logger.warn(
+      "this install has accounts but no active privileged account: administration screens are unreachable until one exists (npm run admin:create -- --force --confirm)",
+      { accounts: install.accounts, privilegedAccounts: install.privilegedAccounts },
+    );
+  }
 }
 
 /** Exposed for tests: release handles so a test process can move on cleanly. */

@@ -75,6 +75,20 @@ Updated at each gate. IDs match `docs/PLAN.md`.
 
 ## Log (append-only, newest first)
 
+### 2026-11-22 (night) — Phase 0 APPROVED, committed as `64e06d6`, Phase 1 started
+
+Your decisions, recorded verbatim where they change the build:
+
+| Your instruction                                         | What it changes                                                                                                                                                                                                                                                                                                                      |
+| -------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| "Phase 0 approved"                                       | Gate G-0 closed as **PASSED → APPROVED**; Gate G-P (plan) approved; Phase 1 becomes the current phase                                                                                                                                                                                                                                |
+| "Keep Hebrew default language – allow English selection" | D-11 approved and now permanent: `he` primary, `en` shipped and selectable, parity enforced by the `Dictionary` type and the i18n tests. Removing English would now be a deliberate spec change, not an implementation shortcut                                                                                                      |
+| "Commit this phase"                                      | `64e06d6 — Phase 0: foundation + tooling gate (approved), port 4000, Hebrew-first RTL`; the commit message itself carries the G-0 evidence and the unverified-Docker caveat. `git status` after the commit: clean; `README.md` still byte-identical                                                                                  |
+| "timezone Jerusalem"                                     | D-5 **closed**: `Asia/Jerusalem` is the default timezone and later phases must prove date/time behaviour against it in tests (DST boundary, `he-IL` date rendering) rather than assume it                                                                                                                                            |
+| "Hosting and OneDrive will come when required"           | Phase 5 (OneDrive) and the SMTP half of Phase 3 are built behind the adapter interfaces with fakes, integration-ready but not activated. No phase waits for a hostname or tenant. Anything requiring real Microsoft/SMTP credentials stays `skip`-with-reason in the test output and is listed as a gap, never described as verified |
+
+Still open (non-blocking for Phase 1): Q1 Docker locally, Q2 whether to normalize a copy of the spec into `docs/PROJECT-SPEC.md`.
+
 ### 2026-11-22 (evening) — Status recheck + Gate G-0 executed + amendments A-1/A-2 implemented
 
 **Trigger:** you asked for a status recheck, port 4000 locally, and Hebrew/RTL as the primary UI language.

@@ -23,6 +23,9 @@ export function proxy(request: NextRequest): NextResponse {
   const requestHeaders = new Headers(request.headers);
   requestHeaders.set("content-security-policy", csp);
   requestHeaders.set("x-nonce", nonce);
+  // Server components cannot read the current path. The shell needs it to mark the
+  // active destination, so the path is handed over as a request header.
+  requestHeaders.set("x-pathname", request.nextUrl.pathname);
 
   const response = NextResponse.next({ request: { headers: requestHeaders } });
   response.headers.set("Content-Security-Policy", csp);

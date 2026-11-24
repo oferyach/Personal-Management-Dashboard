@@ -5,6 +5,11 @@
  *   NODE_ENV=production + fresh database + real migrations
  *   + .next/standalone/server.js (Next "output: standalone" entrypoint).
  *
+ * The first privileged account is created the way an install creates it - through the
+ * admin:create CLI, out of band, before the server starts - so the auth E2E spec has a real
+ * account to sign into and no test invents a shortcut around bootstrap. Those values are
+ * E2E-only and are mirrored literally in tests/e2e/auth.spec.ts.
+ *
  * The secrets here are obviously E2E-only, provided via env and never committed.
  * Pass --no-secrets to exercise the fail-closed startup path.
  */
@@ -36,6 +41,14 @@ if (process.argv.includes("--no-secrets")) {
   delete env.SESSION_SECRET;
   delete env.APP_ENCRYPTION_KEY;
 }
+
+const bootstrapped = !process.argv.includes("--no-secrets");
+// E2E-only identities, mirrored literally in tests/e2e/helpers.ts: a privileged account
+// (the auth spec gives it a factor) and an ordinary one the other specs sign into.
+const adminEmail = "e2e-admin@dashboard.local";
+const adminPassword = "e2e-admin-password-1";
+const observerEmail = "e2e-observer@dashboard.local";
+const observerPassword = "e2e-observer-password-1";
 
 function removeDatabases(dir) {
   for (const suffix of ["", "-wal", "-shm"]) {
@@ -89,6 +102,65 @@ function main() {
       return;
     }
 
+    if (bootstrapped)
+      bootstrapAccount(adminEmail, "E2E Administrator", null, adminPassword, [], () => {
+        bootstrapAccount(observerEmail, "E2E Observer", "user", observerPassword, [
+          "--force",
+          "--confirm",
+        ], () => startServer());
+      });
+    else startServer();
+  });
+
+  // Work item 1.3, the way an install does it: the admin:create CLI, out of band, against
+  // the same database the standalone server is about to open. It runs from the repository
+  // root (tsx resolves the @lib/* aliases there) with absolute database paths, while the
+  // server keeps the relative ones the status page is asserted to report.
+  function bootstrapAccount(email, name, role, password, extraFlags, next) {
+    const absoluteDb = resolve(standaloneDir, databasePath);
+    const cli = spawn(
+      process.execPath,
+      [
+        resolve(process.cwd(), "node_modules/tsx/dist/cli.mjs"),
+        resolve(process.cwd(), "scripts/admin-bootstrap.ts"),
+        "--email",
+        email,
+        "--name",
+        name,
+        ...(role === null ? [] : ["--role", role]),
+        ...(extraFlags || []),
+        "--password-stdin",
+      ],
+      {
+        cwd: process.cwd(),
+        env: {
+          ...env,
+          DATABASE_PATH: absoluteDb,
+          DATABASE_FILE: absoluteDb,
+          ADMIN_PASSWORD: password,
+        },
+        stdio: ["pipe", "inherit", "inherit"],
+      },
+    );
+
+    // Close stdin — the CLI tries stdin first, and if the line is empty
+    // it falls back to the ADMIN_PASSWORD env variable.
+    cli.stdin.end();
+
+    cli.on("exit", (code) => {
+      if (code !== 0) {
+        console.error(`e2e setup failed: admin bootstrap exited with ${code}`);
+        process.exit(code ?? 1);
+      }
+      next();
+    });
+    cli.on("error", (error) => {
+      console.error(`e2e setup failed: admin bootstrap error ${error}`);
+      process.exit(1);
+    });
+  }
+
+  function startServer() {
     const server = spawn(process.execPath, [resolve(standaloneDir, "server.js")], {
       cwd: standaloneDir,
       env,
@@ -108,7 +180,7 @@ function main() {
         console.error(`e2e server exited with code ${code} signal ${signal}`);
       process.exit(code ?? 0);
     });
-  });
+  }
 }
 
 main();
