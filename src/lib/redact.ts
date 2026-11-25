@@ -44,6 +44,10 @@ function looksLikeSecretValue(value: string): boolean {
   return VALUE_PATTERNS.some((pattern) => pattern.test(value));
 }
 
+export function isSecretKeyName(key: string): boolean {
+  return looksLikeSecretKey(key);
+}
+
 /**
  * Returns a copy of `value` with anything that looks like a credential replaced by
  * `[redacted]`. Structural keys are preserved so a log line is still useful.

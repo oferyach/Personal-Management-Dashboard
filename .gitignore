@@ -48,3 +48,9 @@ npm-debug.log*
 push.bat
 deploy-local.*
 *.local.ps1
+
+# Ad-hoc credential scratch files (never committed)
+tokens*.txt
+
+# Agent session artifacts
+.pi/

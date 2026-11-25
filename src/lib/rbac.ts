@@ -87,8 +87,29 @@ export const PERMISSION_KEYS = [
   "notifications.view",
   "notifications.send",
   "notifications.manage",
-  // Activity (Phase 8).
-  "activity.view",
+  // Productivity foundations shared by the Phase 2 modules (packet 2A). Mirrors
+  // the Phase 1 split: `own` is the actor's own work, `shared` is a resource
+  // explicitly shared through `resource_permissions`, `any` is the administrative
+  // global view. `tags.attach` gates using a tag on a resource the actor may edit;
+  // `tags.edit.any` is tag *administration* (rename/delete someone else's tag),
+  // not a licence to edit their content.
+  "tags.view.own",
+  "tags.view.shared",
+  "tags.view.any",
+  "tags.create",
+  "tags.edit.own",
+  "tags.edit.any",
+  "tags.attach",
+  // The user-visible feed of their own work (spec §16). A different table and a
+  // different permission from `audit.view`, which is the security trail.
+  "activity.view.own",
+  "activity.view.shared",
+  "activity.view.any",
+  "activity.record",
+  // Gates the search *feature* only: every result row is filtered by the caller's
+  // own/shared/any view permission for that resource kind, so holding this key
+  // grants no read access by itself (packet 2S).
+  "search.view",
   // Self-service.
   "profile.view_own",
   "profile.edit_own",
@@ -191,6 +212,33 @@ const USER_VIEWS = [
 ] as const;
 
 /**
+ * Phase 2A (packet 2A): tags and the user-visible activity feed. Deliberately
+ * split the same way as the Phase 1 content permissions, because "give a user a
+ * tag vocabulary and a work history" must not silently become "give them the
+ * global view": `*_ANY` groups are only ever added to the two privileged roles,
+ * and `read_only` gets the shared view with no write key at all.
+ */
+const TAGS_SELF = [
+  "tags.view.own",
+  "tags.view.shared",
+  "tags.create",
+  "tags.edit.own",
+  "tags.attach",
+] as const;
+
+const TAGS_ADMIN_EXTRA = ["tags.view.any", "tags.edit.any"] as const;
+
+const TAGS_SHARED_ONLY = ["tags.view.shared"] as const;
+
+const ACTIVITY_SELF = ["activity.view.own", "activity.view.shared", "activity.record"] as const;
+
+const ACTIVITY_ADMIN_EXTRA = ["activity.view.any"] as const;
+
+const ACTIVITY_SHARED_ONLY = ["activity.view.shared"] as const;
+
+const SEARCH_VIEW = ["search.view"] as const;
+
+/**
  * Held by every role, `read_only` included (see the note in `PERMISSION_KEYS`).
  * Without these an account could never secure itself: a `read_only` user could not
  * change a leaked password, and a privileged account with no second factor yet
@@ -230,7 +278,11 @@ export const ROLE_DEFINITIONS: readonly RoleDefinition[] = [
       "onedrive.manage",
       "notifications.send",
       "notifications.manage",
-      "activity.view",
+      ...TAGS_SELF,
+      ...TAGS_ADMIN_EXTRA,
+      ...ACTIVITY_SELF,
+      ...ACTIVITY_ADMIN_EXTRA,
+      ...SEARCH_VIEW,
       "users.view",
       "users.create",
       "users.edit",
@@ -246,7 +298,14 @@ export const ROLE_DEFINITIONS: readonly RoleDefinition[] = [
     key: "user",
     rank: 3,
     privileged: false,
-    permissions: [...USER_VIEWS, ...SELF_SERVICE, ...SELF_SECURITY],
+    permissions: [
+      ...USER_VIEWS,
+      ...SELF_SERVICE,
+      ...SELF_SECURITY,
+      ...TAGS_SELF,
+      ...ACTIVITY_SELF,
+      ...SEARCH_VIEW,
+    ],
   },
   {
     key: "read_only",
@@ -263,6 +322,9 @@ export const ROLE_DEFINITIONS: readonly RoleDefinition[] = [
       "settings.view_own",
       "notifications.view",
       "roles.view",
+      ...TAGS_SHARED_ONLY,
+      ...ACTIVITY_SHARED_ONLY,
+      ...SEARCH_VIEW,
       ...SELF_SECURITY,
     ],
   },

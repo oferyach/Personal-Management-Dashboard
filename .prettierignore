@@ -12,3 +12,6 @@ next-env.d.ts
 
 # Project spec: kept byte-identical to the original README.md (hash baselined)
 README.md
+
+# Agent instructions (partly rewritten by `next dev`): kept as authored, not prettier-formatted
+AGENTS.md

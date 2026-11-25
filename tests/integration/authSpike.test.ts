@@ -123,6 +123,7 @@ describe("Phase 1 auth spike — Better Auth on Next 16 + Drizzle + better-sqlit
         [
           "__drizzle_migrations",
           "accounts",
+          "activity_log",
           "audit_logs",
           "permissions",
           "rate_limit",
@@ -131,6 +132,8 @@ describe("Phase 1 auth spike — Better Auth on Next 16 + Drizzle + better-sqlit
           "roles",
           "sessions",
           "system_meta",
+          "tag_links",
+          "tags",
           "two_factor",
           "user_preferences",
           "users",
