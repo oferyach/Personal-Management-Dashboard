@@ -9,14 +9,14 @@ Legend: `NOT_STARTED` · `PLANNED` · `IN_PROGRESS` · `VERIFIED` (tests execute
 
 ## Current state
 
-**Phases 0 and 1 are APPROVED. Phase 2 is running as small local-AI packets: packets 2A, 2B, 2C and 2D are VERIFIED and await approval.** Your answers are recorded in `docs/PLAN.md` §12.1 and in the decisions log below: Hebrew stays the default with English selectable, timezone `Asia/Jerusalem`, and external hosting/OneDrive credentials remain deferred until required.
+**Phases 0 and 1 are APPROVED. Phase 2 is running as small local-AI packets: packets 2A, 2B, 2C, 2D and 2E are VERIFIED and await approval.** Your answers are recorded in `docs/PLAN.md` §12.1 and in the decisions log below: Hebrew stays the default with English selectable, timezone `Asia/Jerusalem`, and external hosting/OneDrive credentials remain deferred until required.
 
 ```
 Phase 0  Foundation & tooling gate      APPROVED (2026-11-22) — committed
 A-1/A-2  Port 4000 + Hebrew/RTL shell   APPROVED + VERIFIED
 Phase 1  Auth, users, RBAC, MFA, shell  DONE (approved 2026-11-24) — pushed
-Phase 2  Calendar, tasks, projects,     IN PROGRESS — packets 2A + 2B + 2C + 2D VERIFIED
-         dashboard, activity, search    (2E–2T NOT_STARTED)
+Phase 2  Calendar, tasks, projects,     IN PROGRESS — packets 2A + 2B + 2C + 2D + 2E VERIFIED
+         dashboard, activity, search    (2F–2T NOT_STARTED)
 Phase 3  SMTP, reminders, jobs, worker, NOT_STARTED
          notification centre
 Phase 4  Asset management               NOT_STARTED
@@ -79,6 +79,16 @@ Updated at each gate. IDs match `docs/PLAN.md`.
 ---
 
 ## Log (append-only, newest first)
+
+### 2026-11-25 — Packet 2E implemented: pure recurrence engine + ADR-0002
+
+**Scope as written in the roadmap:** "Install and pin the recurrence dependency only here. Write an ADR defining canonical RRULE storage, occurrence key, inclusivity, timezone/DST behavior, `COUNT`/`UNTIL`, `EXDATE`, and bounded expansion. Implement a pure module with no database or UI." No table, no route, no UI — persistence is 2F.
+
+`rrule` **2.8.1** pinned exactly (no range) in `package.json`. `src/lib/recurrence.ts` is the engine; `docs/adr/0002-recurrence-expansion.md` is the decision, and it is the file 2F must read before it creates `event_recurrence_rules`. The engine's shape follows four measured facts: `rrulestr` is a lenient natural-language parser (accepts `FREQ=HOURLY` and `BYSETPOS=-1`), so `validateRule` gates the admissible subset and `rrulestr` is never a validator; `rrulestr` rejects `EXDATE` inside a `RRULE` value (`Unknown RRULE property`), so exceptions are engine/repository wall stamps, and our column's `EXDATE` property is an extension the `.ics` writer must not reuse; `rule.between()` is exclusive at both ends, hence `(from - 1ms, to)`; and the constructor reads `Date.UTC(...)` fields identically under `TZ=UTC` and `TZ=Asia/Jerusalem`, so wall stamps travel as `Date.UTC` values and a rule is rebuilt from validated parts rather than re-parsed from its text.
+
+The one design decision worth restating: **expansion walks the wall calendar, then resolves each stamp through the event's IANA zone.** That is why a daily series across the 2026-03-27 `Asia/Jerusalem` transition keeps `09:00` every day while the instants drift, why an all-day event is 24h in wall space and 23h in instants on that day, and why a fall-back overlap takes the **earlier** instant while a spring-forward gap shifts forward to the first instant past the stamp (found by bisecting the monotone wall predicate) instead of vanishing. `MONTHLY` + `BYMONTHDAY=31` skips February (measured — no clamping), and a leap-day `YEARLY` anchor emits nothing for non-leap years.
+
+Gate: `typecheck`, `lint`, `format:check` clean; **121 unit tests** (13 files) including 23 in `tests/unit/recurrenceEngine.test.ts`; **87 integration tests** (14 files) unchanged; `build` exit 0; **E2E 67 passed / 3 skipped** — 2E adds no route or UI, so the E2E surface is unchanged. Phase-2 gate **G-2 remains NOT_RUN** (its CRUD/isolation integration and E2E 3–8 halves belong to later packets).
 
 ### 2026-11-25 — Packet 2D implemented: `/api/v1/events/agenda` — the shared read minus filters
 
