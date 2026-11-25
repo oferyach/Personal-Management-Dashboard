@@ -52,6 +52,16 @@ export type ActivityAction = (typeof ACTIVITY_ACTIONS)[number];
  * own work, `shared` is a resource explicitly shared with the actor through
  * `resource_permissions`, `any` is the administrative global view.
  */
+/**
+ * Event status vocabulary (packet 2B). Spelled to match iCalendar `STATUS`
+ * (`TENTATIVE|CONFIRMED|CANCELLED`, RFC 5544/5545) because packet 2.5 has to
+ * serialize this column into `.ics` without a later migration rewriting the
+ * `events_status_chk` constraint. Kept here rather than in the events module because
+ * the calendar filters (2C), search (2S) and dashboard (2.10) all read it.
+ */
+export const EVENT_STATUSES = ["tentative", "confirmed", "cancelled"] as const;
+export type EventStatus = (typeof EVENT_STATUSES)[number];
+
 export const VISIBILITIES = ["own", "shared", "any"] as const;
 export type Visibility = (typeof VISIBILITIES)[number];
 
@@ -69,6 +79,18 @@ export const MAX_QUERY_WINDOW_DAYS = 366;
 
 /** Longest resource id accepted by the tag/activity link columns. */
 export const MAX_RESOURCE_ID_LENGTH = 191;
+
+/**
+ * Event field bounds, mirrored by the `events_*_chk` constraints in
+ * `drizzle/0003_phase2b_events.sql`. The service rejects over-length input with a
+ * reason; the database is what makes it impossible to bypass that.
+ */
+export const MAX_EVENT_TITLE_LENGTH = 300;
+export const MAX_EVENT_DESCRIPTION_LENGTH = 5000;
+export const MAX_EVENT_CATEGORY_LENGTH = 60;
+export const MAX_EVENT_LOCATION_LENGTH = 300;
+/** `#rrggbb` — the only color form the calendar UI, `.ics` export and CSS accept. */
+export const EVENT_COLOR_PATTERN = /^#[0-9a-fA-F]{6}$/;
 
 /**
  * Every failure a productivity service can raise for bad input or a denied
@@ -95,7 +117,28 @@ export type ProductivityErrorReason =
   | "window_too_large"
   | "invalid_page_size"
   | "not_found"
-  | "not_authorized";
+  | "not_authorized"
+  // Event input and concurrency (packet 2B). `version_conflict` is the optimistic
+  // `updated_at` mismatch: the caller's expected value is stale, so a route maps
+  // it to 409 instead of re-reading and silently overwriting another write.
+  | "invalid_title"
+  | "title_too_long"
+  | "invalid_description"
+  | "description_too_long"
+  | "invalid_instant"
+  | "inverted_range"
+  | "invalid_timezone"
+  | "invalid_all_day"
+  | "invalid_status"
+  | "invalid_color"
+  | "invalid_category"
+  | "category_too_long"
+  | "invalid_location"
+  | "location_too_long"
+  | "invalid_participant"
+  | "participant_is_owner"
+  | "duplicate_participant"
+  | "version_conflict";
 
 export class ProductivityError extends Error {
   readonly reason: ProductivityErrorReason;
@@ -131,6 +174,10 @@ export function isActivityResourceKind(value: unknown): value is ActivityResourc
 
 export function isActivityAction(value: unknown): value is ActivityAction {
   return (ACTIVITY_ACTIONS as readonly string[]).includes(value as string);
+}
+
+export function isEventStatus(value: unknown): value is EventStatus {
+  return (EVENT_STATUSES as readonly string[]).includes(value as string);
 }
 
 /**

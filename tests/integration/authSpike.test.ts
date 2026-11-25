@@ -125,6 +125,8 @@ describe("Phase 1 auth spike — Better Auth on Next 16 + Drizzle + better-sqlit
           "accounts",
           "activity_log",
           "audit_logs",
+          "event_participants",
+          "events",
           "permissions",
           "rate_limit",
           "resource_permissions",

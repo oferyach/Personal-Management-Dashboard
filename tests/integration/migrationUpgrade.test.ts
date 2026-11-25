@@ -38,8 +38,8 @@ describe("append-only migration history", () => {
     const result = runMigrations();
     expect(result.ok).toBe(true);
     // Every journal entry after the approved baseline: 0000 lean, 0001 identity,
-    // 0002 productivity.
-    expect(result.applied).toBe(3);
+    // 0002 productivity, 0003 events.
+    expect(result.applied).toBe(4);
 
     const sqlite = getSqlite();
     const tables = sqlite
@@ -47,6 +47,8 @@ describe("append-only migration history", () => {
       .all() as { name: string }[];
     expect(tables.map(({ name }) => name)).toContain("users");
     expect(tables.map(({ name }) => name)).toContain("two_factor");
+    expect(tables.map(({ name }) => name)).toContain("events");
+    expect(tables.map(({ name }) => name)).toContain("event_participants");
 
     const columns = sqlite.prepare("PRAGMA table_info(user_preferences)").all() as {
       name: string;
