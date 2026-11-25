@@ -7,11 +7,14 @@ import { createFirstAdmin } from "@/lib/adminBootstrap";
 import { type Actor, AuthorizationError } from "@/lib/rbac";
 import { createEvent, listEvents, readEvent, updateEvent } from "@/lib/events";
 import {
+  AGENDA_HORIZON_DAYS,
+  agendaParams,
   createEventBody,
   duplicateEventBody,
   eventListParams,
   eventSearchParams,
   parseQuery,
+  toAgendaQuery,
   toEventQuery,
   updateEventBody,
 } from "@/lib/eventsApi";
@@ -355,5 +358,76 @@ describe("error mapping", () => {
     const response = apiErrorResponse(new ApiInputError("invalid_origin"));
     expect(response.status).toBe(403);
     expect(await response.json()).toEqual({ error: "invalid_origin" });
+  });
+});
+
+describe("agenda query strings", () => {
+  it("bounds the window itself when the caller sends none", () => {
+    const before = Date.now();
+    const query = toAgendaQuery({});
+    const after = Date.now();
+    const from = Date.parse(query.window.from);
+    expect(from).toBeGreaterThanOrEqual(before);
+    expect(from).toBeLessThanOrEqual(after);
+    expect(Date.parse(query.window.to) - from).toBe(AGENDA_HORIZON_DAYS * 86_400_000);
+    expect(query.cursor).toBeNull();
+    expect(query.limit).toBeUndefined();
+  });
+
+  it("keeps a caller's own bounds and page size", () => {
+    const query = toAgendaQuery({
+      from: "2026-12-01T00:00:00.000Z",
+      to: "2026-12-03T00:00:00.000Z",
+      limit: "5",
+    });
+    expect(query.window).toEqual({
+      from: "2026-12-01T00:00:00.000Z",
+      to: "2026-12-03T00:00:00.000Z",
+    });
+    expect(query.limit).toBe(5);
+  });
+
+  it("accepts none of the filters /api/v1/events accepts", () => {
+    for (const extra of [
+      { status: "confirmed" },
+      { category: "work" },
+      { location: "office" },
+      { attendee: "someone" },
+      { q: "draft" },
+      { limit: "5O" },
+    ]) {
+      expect(agendaParams.safeParse(extra).success, JSON.stringify(extra)).toBe(false);
+    }
+    expect(agendaParams.safeParse({ limit: "12" }).success).toBe(true);
+    expect(agendaParams.safeParse({}).success).toBe(true);
+  });
+
+  it("refuses half a cursor, and hands an inverted window to the service", async () => {
+    expect(() => toAgendaQuery({ cursorStartAt: "2026-12-02T00:00:00.000Z" })).toThrow(
+      ProductivityError,
+    );
+    expect(() => toAgendaQuery({ cursorId: "abc" })).toThrow(ProductivityError);
+    expect(
+      toAgendaQuery({
+        cursorStartAt: "2026-12-02T00:00:00.000Z",
+        cursorId: "abc",
+      }).cursor,
+    ).toEqual({ startAt: "2026-12-02T00:00:00.000Z", id: "abc" });
+
+    const inverted = toAgendaQuery({
+      from: "2026-12-08T00:00:00.000Z",
+      to: "2026-12-01T00:00:00.000Z",
+    });
+    expect(await reasonOf(listEvents(hostActor, inverted))).toBe("invalid_window");
+  });
+
+  it("parses an agenda request's query string strictly", () => {
+    expect(parseQuery(new Request(`${BASE}/agenda`), agendaParams)).toEqual({});
+    expect(parseQuery(new Request(`${BASE}/agenda?limit=3`), agendaParams)).toEqual({
+      limit: "3",
+    });
+    expect(() => parseQuery(new Request(`${BASE}/agenda?status=confirmed`), agendaParams)).toThrow(
+      ApiInputError,
+    );
   });
 });

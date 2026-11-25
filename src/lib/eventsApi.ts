@@ -122,20 +122,78 @@ export function toEventQuery(
   location?: string;
   attendeeUserId?: string;
 } {
-  const hasCursor = source.cursorStartAt !== undefined && source.cursorId !== undefined;
-  if ((source.cursorStartAt === undefined) !== (source.cursorId === undefined)) {
-    throw new ProductivityError("invalid_window", "A cursor needs both startAt and id.");
-  }
   return {
     window: { from: source.from, to: source.to },
-    limit: source.limit === undefined ? undefined : Number(source.limit),
-    cursor: hasCursor ? { startAt: source.cursorStartAt!, id: source.cursorId! } : null,
+    limit: limitOf(source.limit),
+    cursor: cursorOf(source),
     status: source.status,
     category:
       source.category === undefined ? undefined : source.category === "" ? null : source.category,
     location: source.location,
     attendeeUserId: source.attendee,
   };
+}
+
+/**
+ * `GET /api/v1/events/agenda` — the shared agenda (packet 2D).
+ *
+ * Deliberately narrower than `eventListParams`: no status, category, location or
+ * attendee filter, because the agenda is defined as "the next N events this
+ * caller may see" and a filter would make two callers' agendas incomparable.
+ * A rejected parameter is a 400, so `?status=` here tells the caller that the
+ * filter belongs on `/api/v1/events`.
+ */
+export const agendaParams = z
+  .object({
+    from: bounded.optional(),
+    to: bounded.optional(),
+    limit: z
+      .string()
+      .regex(/^\d{1,4}$/)
+      .optional(),
+    cursorStartAt: bounded.optional(),
+    cursorId: bounded.optional(),
+  })
+  .strict();
+
+/**
+ * The agenda window is always bounded server-side: an unbounded agenda read
+ * grows with the account's history, which is what the packet rules out. `from`
+ * therefore defaults to *now* — an agenda starts at the present — and `to` to
+ * `from + AGENDA_HORIZON_DAYS`, so "the next N events" needs no parameters at
+ * all while the read stays index-bounded. A caller may narrow either bound.
+ */
+export const AGENDA_HORIZON_DAYS = 31;
+
+export function toAgendaQuery(source: z.infer<typeof agendaParams>): {
+  window: { from: string; to: string };
+  limit?: number;
+  cursor?: { startAt: string; id: string } | null;
+} {
+  const from = source.from ?? new Date().toISOString();
+  const to =
+    source.to ?? new Date(Date.parse(from) + AGENDA_HORIZON_DAYS * 86_400_000).toISOString();
+  return { window: { from, to }, limit: limitOf(source.limit), cursor: cursorOf(source) };
+}
+
+function limitOf(value: string | undefined): number | undefined {
+  return value === undefined ? undefined : Number(value);
+}
+
+/**
+ * The `(startAt, id)` pair both list and agenda carry. Half a cursor is refused
+ * rather than ignored: a truncated link would otherwise page from the start and
+ * silently repeat rows the caller has already seen.
+ */
+function cursorOf(source: { cursorStartAt?: string; cursorId?: string }): {
+  startAt: string;
+  id: string;
+} | null {
+  if ((source.cursorStartAt === undefined) !== (source.cursorId === undefined)) {
+    throw new ProductivityError("invalid_window", "A cursor needs both startAt and id.");
+  }
+  if (source.cursorStartAt === undefined) return null;
+  return { startAt: source.cursorStartAt, id: source.cursorId! };
 }
 
 /**

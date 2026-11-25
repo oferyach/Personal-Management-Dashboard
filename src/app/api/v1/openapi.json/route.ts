@@ -25,6 +25,14 @@ export function GET(request: Request): Response {
         },
         post: { summary: "Create event", responses: { "201": { description: "Created" } } },
       },
+      "/events/agenda": {
+        get: {
+          summary: "List events the caller attends, organised by start",
+          description:
+            "Window optional — defaults to now through now plus 31 days; no status, category, location or attendee filter.",
+          responses: { "200": { description: "Events page" } },
+        },
+      },
       "/events/attending": {
         get: {
           summary: "List events the caller attends",
