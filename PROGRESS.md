@@ -9,14 +9,14 @@ Legend: `NOT_STARTED` · `PLANNED` · `IN_PROGRESS` · `VERIFIED` (tests execute
 
 ## Current state
 
-**Phases 0 and 1 are APPROVED. Phase 2 is running as small local-AI packets: packet 2A is VERIFIED and awaits approval.** Your answers are recorded in `docs/PLAN.md` §12.1 and in the decisions log below: Hebrew stays the default with English selectable, timezone `Asia/Jerusalem`, and external hosting/OneDrive credentials remain deferred until required.
+**Phases 0 and 1 are APPROVED. Phase 2 is running as small local-AI packets: packets 2A and 2B are VERIFIED and await approval.** Your answers are recorded in `docs/PLAN.md` §12.1 and in the decisions log below: Hebrew stays the default with English selectable, timezone `Asia/Jerusalem`, and external hosting/OneDrive credentials remain deferred until required.
 
 ```
 Phase 0  Foundation & tooling gate      APPROVED (2026-11-22) — committed
 A-1/A-2  Port 4000 + Hebrew/RTL shell   APPROVED + VERIFIED
 Phase 1  Auth, users, RBAC, MFA, shell  DONE (approved 2026-11-24) — pushed
-Phase 2  Calendar, tasks, projects,     IN PROGRESS — packet 2A VERIFIED
-         dashboard, activity, search    (2B–2T NOT_STARTED)
+Phase 2  Calendar, tasks, projects,     IN PROGRESS — packets 2A + 2B VERIFIED
+         dashboard, activity, search    (2C–2T NOT_STARTED)
 Phase 3  SMTP, reminders, jobs, worker, NOT_STARTED
          notification centre
 Phase 4  Asset management               NOT_STARTED
@@ -54,6 +54,7 @@ Updated at each gate. IDs match `docs/PLAN.md`.
 | A-2      | Hebrew primary + RTL, English secondary                     | **VERIFIED**        | `tests/unit/i18n.test.ts` (18 tests), `tests/e2e/i18n.spec.ts` (6 tests × desktop+mobile), live `curl` check of `lang="he-IL" dir="rtl"`                                    |
 | 1.1–1.12 | Foundation / auth / RBAC / MFA / shell / settings           | **DONE (approved)** | User verified login, MFA, and navigation; 17 Vitest files / 93 tests; production build; 54 Playwright tests (51 passed, 3 stateful mobile duplicates intentionally skipped) |
 | 2A       | Shared vocabulary, tags, activity services                  | **VERIFIED**        | `npm run typecheck`, `npm run lint`, `npm run format:check`, `npm test` (21 files / 123 tests), `npm run build` — 2026-11-25                                                |
+| 2B       | Event + participant schema, event repository                | **VERIFIED**        | `npm run typecheck`, `npm run lint`, `npm run format:check`, `npm test` (25 files / 153 tests), `npm run build` — 2026-11-25                                                |
 | 2.1–2.12 | Calendar / tasks / projects / dashboard / activity / search | NOT_STARTED         | —                                                                                                                                                                           |
 | 3.1–3.9  | SMTP / reminders / job subsystem / worker / notifications   | NOT_STARTED         | —                                                                                                                                                                           |
 | 4.1–4.8  | Asset management                                            | NOT_STARTED         | —                                                                                                                                                                           |
@@ -78,6 +79,20 @@ Updated at each gate. IDs match `docs/PLAN.md`.
 ---
 
 ## Log (append-only, newest first)
+
+### 2026-11-25 — Packet 2B implemented: event + participant schema, event repository
+
+Added migration `0003_phase2b_events` with two tables. `events` carries the owner, `start_at`/`end_at` as UTC ISO strings, all-day flag, IANA `timezone`, status, color, location, category, description and the visibility columns, guarded by **12 CHECK constraints** (UTC shape via `glob`, `end_at > start_at`, status enum, boolean encoding, and every field length bound) plus four indexes: `(owner_user_id, start_at, id)`, `(owner_user_id, status, start_at)`, `(status, start_at)` and the primary key. `event_participants` is the `(event_id, user_id)` join with a unique index both directions. `src/db/schema/events.ts` mirrors all of it in Drizzle; `src/db/schema/index.ts` re-exports it.
+
+`src/lib/events.ts` is the repository: `createEvent`, `updateEvent`, `readEvent`, `listEvents`, `listEventsAttendedBy`, `listEventParticipants`, `addParticipant`, `removeParticipant`, `listEventTags`, `addEventTag`, `removeEventTag`, with `EventRecord` / `EventInput` / `EventUpdate` / `EventPage` / `ParticipantRecord`. Every operation takes an `Actor` and re-checks the RBAC key on the server — a page never decides what it is allowed to see. Keyset pagination is `(start_at, id)` with an opaque `{ startAt, id }` cursor, and every read requires a bounded window: unbounded or over `MAX_QUERY_WINDOW_DAYS` is rejected rather than scanned. `ProductivityError` reasons are reused (`invalid_instant`, `invalid_window`, `window_too_large`, `invalid_status`, `invalid_status_field` …) so 2A and 2B fail the same way. Event vocabulary (`EVENT_STATUSES`, `isEventStatus`, the `MAX_EVENT_*` bounds, `EVENT_COLOR_PATTERN`) lives in `src/lib/productivity.ts` next to the constraints it mirrors, not in the events module, because the schema and the UI both need it.
+
+To keep tag visibility from drifting, `tagView` and `findTag` in `src/lib/tags.ts` are now exported and reused by the event tag join instead of being reimplemented there.
+
+Two untracked scratch files (`tests/unit/probe.test.ts`, `tests/unit/probe2.test.ts`) had no `vitest` imports and broke `npm run typecheck` and `npm run build` before this packet could be gated. They were not deleted; they were given the missing `expect`/`it` imports so the gate runs. They are throwaway probes and should be removed by you before the next commit.
+
+Verification (executed 2026-11-25): `npm run typecheck` clean; `npm run lint` clean; `npm run format:check` — all files Prettier-clean; `npm test` → **25 files / 153 tests passed** (`tests/unit/events.test.ts` 19 tests, `tests/integration/events.test.ts` 9 tests); `npm run build` compiled successfully. `npm run test:e2e` not run — 2B adds no routes or UI.
+
+Not done: no calendar/task/project UI, no routes, no reminders, no `.ics` export — later packets own those.
 
 ### 2026-11-25 — Packet 2A implemented: shared vocabulary, tag service, activity service
 
@@ -253,7 +268,7 @@ Explicitly **not** done, on purpose: no `package.json`, no dependencies installe
 
 ## Next action
 
-Start only **packet 2B — Event schema and repository** from `docs/LOCAL_AI_ROADMAP.md`. Complete its micro-gate and green commit before opening 2C. Do not ask a local AI to implement all of Phase 2 in one task.
+Start only **packet 2C — Non-recurring event service and API** from `docs/LOCAL_AI_ROADMAP.md`. Complete its micro-gate and green commit before opening 2D. Do not ask a local AI to implement all of Phase 2 in one task.
 
 Current truth for running it locally:
 
@@ -264,4 +279,4 @@ npm run test:e2e     → real production artifact on 127.0.0.1:4100 (+ 4111 for 
 npm run healthcheck  → http://127.0.0.1:${PORT:-4000}/health
 ```
 
-Explicitly **not** done yet: calendar/tasks/projects/dashboard and all Phase 2 UI (packet 2A shipped only the tag and activity services, no routes or screens), SMTP/reminders/worker (Phase 3), assets (Phase 4), OneDrive (Phase 5), and production verification (Phase 6). Placeholder screens must not claim these features work before their packets pass.
+Explicitly **not** done yet: calendar/tasks/projects/dashboard and all Phase 2 UI (packets 2A–2B shipped only the tag, activity and event services, no routes or screens), SMTP/reminders/worker (Phase 3), assets (Phase 4), OneDrive (Phase 5), and production verification (Phase 6). Placeholder screens must not claim these features work before their packets pass.

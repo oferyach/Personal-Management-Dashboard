@@ -8,6 +8,7 @@ import {
   user_preferences,
 } from "./identity";
 import { activity_log, tag_links, tags } from "./productivity";
+import { event_participants, events } from "./events";
 import { systemMeta } from "./systemMeta";
 
 /**
@@ -31,6 +32,8 @@ export const schema = {
   resource_permissions,
   user_preferences,
   audit_logs,
+  events,
+  event_participants,
   tags,
   tag_links,
   activity_log,
@@ -38,11 +41,14 @@ export const schema = {
 
 export * from "./auth";
 export * from "./identity";
+export * from "./events";
 export * from "./productivity";
 export * from "./systemMeta";
 
 export type Schema = typeof schema;
 export type SystemMetaRow = typeof systemMeta.$inferSelect;
+export type EventRow = typeof events.$inferSelect;
+export type EventParticipantRow = typeof event_participants.$inferSelect;
 export type TagRow = typeof tags.$inferSelect;
 export type TagLinkRow = typeof tag_links.$inferSelect;
 export type ActivityLogRow = typeof activity_log.$inferSelect;

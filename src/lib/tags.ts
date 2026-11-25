@@ -58,10 +58,15 @@ export interface TagLinkSummary {
  * means no tag view key at all, which callers turn into a raised
  * `AuthorizationError` rather than a silently empty list.
  */
-type TagView =
+/**
+ * Exported for `src/lib/events.ts`: the event tag join below has to apply the
+ * same visibility union, and a second implementation would let tag visibility
+ * drift between the two services.
+ */
+export type TagView =
   { kind: "none" } | { kind: "empty" } | { kind: "all" } | { kind: "where"; predicate: SQL };
 
-async function tagView(actor: Actor): Promise<TagView> {
+export async function tagView(actor: Actor): Promise<TagView> {
   if (await can(actor, "tags.view.any")) return { kind: "all" };
   const holdsOwn = await can(actor, "tags.view.own");
   const holdsShared = await can(actor, "tags.view.shared");
@@ -104,8 +109,13 @@ async function sharedTagIds(actor: Actor): Promise<string[]> {
 /**
  * Resolve one tag for this actor, with the visibility predicate inside the
  * `where`. A tag that exists but is not visible to this actor reads as absent.
+ * Exported for `src/lib/events.ts`, which resolves the tag id an event is about
+ * to link before it writes the link.
  */
-async function findTag(actor: Actor, tagId: string): Promise<typeof tags.$inferSelect | null> {
+export async function findTag(
+  actor: Actor,
+  tagId: string,
+): Promise<typeof tags.$inferSelect | null> {
   if (typeof tagId !== "string" || tagId.length === 0 || tagId.length > MAX_RESOURCE_ID_LENGTH) {
     return null;
   }
