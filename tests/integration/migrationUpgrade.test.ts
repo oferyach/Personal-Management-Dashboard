@@ -37,7 +37,9 @@ describe("append-only migration history", () => {
 
     const result = runMigrations();
     expect(result.ok).toBe(true);
-    expect(result.applied).toBe(2);
+    // Every journal entry after the approved baseline: 0000 lean, 0001 identity,
+    // 0002 productivity.
+    expect(result.applied).toBe(3);
 
     const sqlite = getSqlite();
     const tables = sqlite

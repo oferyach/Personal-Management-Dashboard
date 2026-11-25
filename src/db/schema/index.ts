@@ -7,6 +7,7 @@ import {
   roles,
   user_preferences,
 } from "./identity";
+import { activity_log, tag_links, tags } from "./productivity";
 import { systemMeta } from "./systemMeta";
 
 /**
@@ -30,11 +31,18 @@ export const schema = {
   resource_permissions,
   user_preferences,
   audit_logs,
+  tags,
+  tag_links,
+  activity_log,
 } as const;
 
 export * from "./auth";
 export * from "./identity";
+export * from "./productivity";
 export * from "./systemMeta";
 
 export type Schema = typeof schema;
 export type SystemMetaRow = typeof systemMeta.$inferSelect;
+export type TagRow = typeof tags.$inferSelect;
+export type TagLinkRow = typeof tag_links.$inferSelect;
+export type ActivityLogRow = typeof activity_log.$inferSelect;

@@ -9,14 +9,14 @@ Legend: `NOT_STARTED` · `PLANNED` · `IN_PROGRESS` · `VERIFIED` (tests execute
 
 ## Current state
 
-**Phases 0 and 1 are APPROVED. Phase 2 is planned as small local-AI packets and has not started.** Your answers are recorded in `docs/PLAN.md` §12.1 and in the decisions log below: Hebrew stays the default with English selectable, timezone `Asia/Jerusalem`, and external hosting/OneDrive credentials remain deferred until required.
+**Phases 0 and 1 are APPROVED. Phase 2 is running as small local-AI packets: packet 2A is VERIFIED and awaits approval.** Your answers are recorded in `docs/PLAN.md` §12.1 and in the decisions log below: Hebrew stays the default with English selectable, timezone `Asia/Jerusalem`, and external hosting/OneDrive credentials remain deferred until required.
 
 ```
 Phase 0  Foundation & tooling gate      APPROVED (2026-11-22) — committed
 A-1/A-2  Port 4000 + Hebrew/RTL shell   APPROVED + VERIFIED
 Phase 1  Auth, users, RBAC, MFA, shell  DONE (approved 2026-11-24) — pushed
-Phase 2  Calendar, tasks, projects,     PLANNED as packets 2A–2T
-         dashboard, activity, search
+Phase 2  Calendar, tasks, projects,     IN PROGRESS — packet 2A VERIFIED
+         dashboard, activity, search    (2B–2T NOT_STARTED)
 Phase 3  SMTP, reminders, jobs, worker, NOT_STARTED
          notification centre
 Phase 4  Asset management               NOT_STARTED
@@ -53,6 +53,7 @@ Updated at each gate. IDs match `docs/PLAN.md`.
 | A-1      | Local port 4000 (was 3000 — occupied here by another site)  | **VERIFIED**        | `npm run dev` → `http://localhost:4000` HTTP 200; `tests/unit/env.test.ts`, `tests/unit/csp.test.ts`, E2E on 4100/4111                                                      |
 | A-2      | Hebrew primary + RTL, English secondary                     | **VERIFIED**        | `tests/unit/i18n.test.ts` (18 tests), `tests/e2e/i18n.spec.ts` (6 tests × desktop+mobile), live `curl` check of `lang="he-IL" dir="rtl"`                                    |
 | 1.1–1.12 | Foundation / auth / RBAC / MFA / shell / settings           | **DONE (approved)** | User verified login, MFA, and navigation; 17 Vitest files / 93 tests; production build; 54 Playwright tests (51 passed, 3 stateful mobile duplicates intentionally skipped) |
+| 2A       | Shared vocabulary, tags, activity services                  | **VERIFIED**        | `npm run typecheck`, `npm run lint`, `npm run format:check`, `npm test` (21 files / 123 tests), `npm run build` — 2026-11-25                                                |
 | 2.1–2.12 | Calendar / tasks / projects / dashboard / activity / search | NOT_STARTED         | —                                                                                                                                                                           |
 | 3.1–3.9  | SMTP / reminders / job subsystem / worker / notifications   | NOT_STARTED         | —                                                                                                                                                                           |
 | 4.1–4.8  | Asset management                                            | NOT_STARTED         | —                                                                                                                                                                           |
@@ -77,6 +78,26 @@ Updated at each gate. IDs match `docs/PLAN.md`.
 ---
 
 ## Log (append-only, newest first)
+
+### 2026-11-25 — Packet 2A implemented: shared vocabulary, tag service, activity service
+
+Added migration `0002_phase2a_productivity` (`tags`, `tag_links`, `activity_log` with resource-kind and action CHECK constraints plus the `(created_at, id)` feed indexes), the shared vocabulary in `src/lib/productivity.ts`, the tag service in `src/lib/tags.ts` and the activity service in `src/lib/activity.ts`. No routes or UI yet — later packets own those.
+
+Bug found while testing the packet: tag and activity visibility were resolved as a _single strongest level_, so a role holding both `*.view.own` and `*.view.shared` (the `user` role) was narrowed to the shared grant list and could not see its own tags or its own feed. Both services now build the **union** of every held view (`tagView` / `activityView`), distinguish "holds no view key" (raises `AuthorizationError`) from "holds a view key but nothing matches" (empty page), and keep `activity.view.any` unrestricted. Phase 1 services were checked: none read `*.view.shared`, so the defect was confined to 2A.
+
+Also corrected stale Phase 1 expectations that the new migration invalidated: `tests/integration/authSpike.test.ts` table list (+`tags`, `tag_links`, `activity_log`) and `tests/integration/migrationUpgrade.test.ts` applied-migration count (2 → 3).
+
+Packet coverage added on top of the services: `tests/integration/rbacSeed.test.ts` (re-seeding is a no-op, the seeded rows equal the declared matrix, privileged flags stay stable) and a new case in `tests/unit/rbac.test.ts` pinning the exact four-role grants for the shared productivity keys.
+
+| Command                | Executed result                                                                                 |
+| ---------------------- | ----------------------------------------------------------------------------------------------- |
+| `npm run typecheck`    | **passed**, 0 TypeScript errors                                                                 |
+| `npm run lint`         | **passed**, 0 ESLint errors/warnings                                                            |
+| `npm run format:check` | **passed**, all files formatted (after `prettier --write` on packet files)                      |
+| `npm test`             | **21 files / 123 tests passed** (was 17 / 93: +1 vocabulary unit, +3 seed, +7 tag, +8 activity) |
+| `npm run build`        | **passed**, Next 16.4.6 Webpack production build                                                |
+
+Not yet run for this packet: `npm run test:e2e` (2A adds no routes or UI, so the Phase 1 E2E surface is unchanged) and `npm run test:coverage`. Committed as `phase 2A: add shared productivity foundations`; the micro-gate is green and awaits your approval before 2B opens.
 
 ### 2026-11-24 — Phase 1 accepted, pushed, and local-AI roadmap prepared
 
@@ -232,7 +253,7 @@ Explicitly **not** done, on purpose: no `package.json`, no dependencies installe
 
 ## Next action
 
-Start only **packet 2A — Shared productivity vocabulary and schema** from `docs/LOCAL_AI_ROADMAP.md`. Complete its micro-gate and green commit before opening 2B. Do not ask a local AI to implement all of Phase 2 in one task.
+Start only **packet 2B — Event schema and repository** from `docs/LOCAL_AI_ROADMAP.md`. Complete its micro-gate and green commit before opening 2C. Do not ask a local AI to implement all of Phase 2 in one task.
 
 Current truth for running it locally:
 
@@ -243,4 +264,4 @@ npm run test:e2e     → real production artifact on 127.0.0.1:4100 (+ 4111 for 
 npm run healthcheck  → http://127.0.0.1:${PORT:-4000}/health
 ```
 
-Explicitly **not** done yet: calendar/tasks/projects/dashboard/activity/search (Phase 2), SMTP/reminders/worker (Phase 3), assets (Phase 4), OneDrive (Phase 5), and production verification (Phase 6). Placeholder screens must not claim these features work before their packets pass.
+Explicitly **not** done yet: calendar/tasks/projects/dashboard and all Phase 2 UI (packet 2A shipped only the tag and activity services, no routes or screens), SMTP/reminders/worker (Phase 3), assets (Phase 4), OneDrive (Phase 5), and production verification (Phase 6). Placeholder screens must not claim these features work before their packets pass.
