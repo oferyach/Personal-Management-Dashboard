@@ -54,6 +54,11 @@ const adminEmail = "e2e-admin@dashboard.local";
 const adminPassword = "e2e-admin-password-1";
 const observerEmail = "e2e-observer@dashboard.local";
 const observerPassword = "e2e-observer-password-1";
+// A `read_only` account: the events surface needs a session that holds the read
+// grants and none of the write grants, so a denied write reads as 403 rather
+// than an unauthenticated 401.
+const readerEmail = "e2e-reader@dashboard.local";
+const readerPassword = "e2e-reader-password-1";
 
 function removeDatabases(dir) {
   for (const suffix of ["", "-wal", "-shm"]) {
@@ -118,8 +123,20 @@ function main() {
           observerPassword,
           ["--force", "--confirm"],
           () => {
-            prepareObserverFixture();
-            startServer();
+            // A `read_only` account: the events surface needs a session holding
+            // the read grants and none of the write grants, so a denied write
+            // reads as 403 missing_permission rather than 401.
+            bootstrapAccount(
+              readerEmail,
+              "E2E Reader",
+              "read_only",
+              readerPassword,
+              ["--force", "--confirm"],
+              () => {
+                prepareObserverFixture();
+                startServer();
+              },
+            );
           },
         );
       });

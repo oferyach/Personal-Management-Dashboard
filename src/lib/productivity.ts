@@ -91,6 +91,12 @@ export const MAX_EVENT_CATEGORY_LENGTH = 60;
 export const MAX_EVENT_LOCATION_LENGTH = 300;
 /** `#rrggbb` — the only color form the calendar UI, `.ics` export and CSS accept. */
 export const EVENT_COLOR_PATTERN = /^#[0-9a-fA-F]{6}$/;
+/**
+ * Longest search phrase the event search service accepts. A search is not a
+ * denial-of-service vector only because it is bounded, and the phrase is echoed
+ * back to the caller by the UI, so it has to fit a line.
+ */
+export const MAX_SEARCH_QUERY_LENGTH = 200;
 
 /**
  * Every failure a productivity service can raise for bad input or a denied
@@ -102,6 +108,9 @@ export const EVENT_COLOR_PATTERN = /^#[0-9a-fA-F]{6}$/;
  *    confirm that it exists.
  * - `not_authorized` → 403. The row is visible to the actor but they may not
  *    perform this operation on it.
+ * - `version_conflict` → 409. The caller read a row another writer has since
+ *    changed; re-read and re-apply. Distinct from 400 because the caller must
+ *    fetch a new `updatedAt`, not fix the shape of their request.
  * - the rest → 400.
  */
 export type ProductivityErrorReason =
@@ -138,7 +147,13 @@ export type ProductivityErrorReason =
   | "invalid_participant"
   | "participant_is_owner"
   | "duplicate_participant"
-  | "version_conflict";
+  | "version_conflict"
+  // Search and filter input (packet 2C). `invalid_query` is a missing or blank
+  // phrase, `query_too_long` its length, `invalid_filter` a value the events
+  // table cannot express (an unknown status, a non-string category or location).
+  | "invalid_query"
+  | "query_too_long"
+  | "invalid_filter";
 
 export class ProductivityError extends Error {
   readonly reason: ProductivityErrorReason;

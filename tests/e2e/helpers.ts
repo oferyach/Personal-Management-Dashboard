@@ -15,6 +15,10 @@ export const ADMIN_PASSWORD = "e2e-admin-password-1";
 // sign in as this one, so they never depend on the admin's factor state.
 export const OBSERVER_EMAIL = "e2e-observer@dashboard.local";
 export const OBSERVER_PASSWORD = "e2e-observer-password-1";
+// A `read_only` account: holds the calendar read grants and none of the write
+// grants, so a denied write reads as 403 rather than an unauthenticated 401.
+export const READER_EMAIL = "e2e-reader@dashboard.local";
+export const READER_PASSWORD = "e2e-reader-password-1";
 
 /**
  * Fills the one form whose required (non-hidden) inputs are exactly `fields`,

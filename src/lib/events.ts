@@ -25,7 +25,7 @@
  */
 import { randomUUID } from "crypto";
 
-import { and, asc, eq, gt, gte, lt, or, sql, SQL } from "drizzle-orm";
+import { and, asc, eq, gt, gte, isNull, lt, or, sql, SQL } from "drizzle-orm";
 import { getDb } from "@/db/client";
 import { tag_links, type EventRow, event_participants, events, tags, users } from "@/db/schema";
 import {
@@ -37,6 +37,7 @@ import {
   MAX_EVENT_TITLE_LENGTH,
   MAX_PAGE_SIZE,
   MAX_QUERY_WINDOW_DAYS,
+  MAX_SEARCH_QUERY_LENGTH,
   ProductivityError,
   type ProductivityErrorReason,
   clampPageSize,
@@ -47,6 +48,7 @@ import {
 } from "./productivity";
 import { authorize, can, type Actor } from "./rbac";
 import { readPreferences } from "./preferences";
+import { recordActivity } from "./activity";
 import { attachTag, detachTag, tagView, type TagLinkSummary } from "./tags";
 
 /**
@@ -365,6 +367,23 @@ export interface EventInput {
  * the primary error path.
  */
 export async function createEvent(actor: Actor, input: EventInput): Promise<EventRecord> {
+  return insertEvent(actor, input);
+}
+
+/**
+ * Shared body of `createEvent` and `duplicateEvent`.
+ *
+ * `provenance` is the only difference between the two: a duplicate is a create
+ * whose feed entry names the event it was copied from, which keeps "copied from…"
+ * in the dashboard without a second table (§13: the feed is the audit trail).
+ * The activity write is best-effort by design — `recordActivity` logs and returns
+ * null rather than turning a committed event into a reported failure.
+ */
+async function insertEvent(
+  actor: Actor,
+  input: Omit<EventInput, "actor">,
+  provenance?: { duplicatedFrom: string },
+): Promise<EventRecord> {
   await authorize(actor, "calendar.create");
 
   const ownerUserId =
@@ -416,6 +435,17 @@ export async function createEvent(actor: Actor, input: EventInput): Promise<Even
   };
 
   await getDb().insert(events).values(record);
+  await recordActivity({
+    actor,
+    ownerUserId: record.ownerUserId,
+    resourceType: "event",
+    resourceId: record.id,
+    action: "created",
+    detail: {
+      title: record.title,
+      ...(provenance === undefined ? {} : { duplicatedFrom: provenance.duplicatedFrom }),
+    },
+  });
   return record;
 }
 
@@ -519,7 +549,154 @@ export async function updateEvent(actor: Actor, input: EventUpdate): Promise<Eve
       "This event changed since it was read; re-read it and retry.",
     );
   }
+
+  const changedFields = [
+    ["title", input.title],
+    ["description", input.description],
+    ["start", input.start],
+    ["end", input.end],
+    ["allDay", input.allDay],
+    ["timezone", input.timezone],
+    ["status", input.status],
+    ["category", input.category],
+    ["color", input.color],
+    ["location", input.location],
+  ]
+    .filter(([, value]) => value !== undefined)
+    .map(([name]) => name);
+  await recordActivity({
+    actor,
+    ownerUserId: updated.ownerUserId,
+    resourceType: "event",
+    resourceId: updated.id,
+    action: "updated",
+    detail: { fields: changedFields },
+  });
   return recordOf(updated);
+}
+
+export interface EventDelete {
+  actor: Actor;
+  eventId: unknown;
+  /**
+   * The `updatedAt` of the row the caller read. Optional here in a way it is not
+   * for `updateEvent`: deleting is the one operation where a caller may legitimately
+   * say "remove this, whatever happened in between". Supplied, the delete is
+   * conditional on the token, so a UI holding a stale row cannot silently remove
+   * an event someone else has since changed.
+   */
+  expectedUpdatedAt?: unknown;
+}
+
+/**
+ * Delete an event and everything that hangs off it.
+ *
+ * `event_participants` goes with the `ON DELETE CASCADE` key. `tag_links` is
+ * deliberately *not* cascaded — tags are shared vocabulary owned by the account,
+ * not components of an event — so the links are removed explicitly, in the same
+ * transaction as the event row, so no reader can observe an event with dangling
+ * links or links pointing at a deleted event.
+ *
+ * Returns the row as it was before deletion, which is what a "deleted X, undo?"
+ * affordance needs.
+ */
+export async function deleteEvent(actor: Actor, input: EventDelete): Promise<EventRecord> {
+  const holdsAny = await can(actor, "calendar.edit.any");
+  if (!holdsAny && !(await can(actor, "calendar.edit.own"))) {
+    // Raise the real 403 instead of reporting a row as missing.
+    await authorize(actor, "calendar.edit.own");
+  }
+  const eventId = requireResourceId(input.eventId);
+
+  const view = await eventView(actor);
+  if (view.kind === "none") {
+    await authorize(actor, "calendar.view.own");
+    throw new ProductivityError("not_authorized", "This actor cannot see any events.");
+  }
+  const [row] = await getDb()
+    .select()
+    .from(events)
+    .where(and(eq(events.id, eventId), view.kind === "where" ? view.predicate : undefined))
+    .limit(1);
+  if (row === undefined) {
+    throw new ProductivityError("not_found", "No such event.");
+  }
+  if (!holdsAny && row.ownerUserId !== actor.userId) {
+    throw new ProductivityError("not_authorized", "This event belongs to another account.");
+  }
+
+  const expected =
+    input.expectedUpdatedAt === undefined || input.expectedUpdatedAt === null
+      ? null
+      : instantText(input.expectedUpdatedAt, "Expected updatedAt");
+  if (expected !== null && expected !== row.updatedAt) {
+    throw new ProductivityError(
+      "version_conflict",
+      "This event changed since it was read; re-read it and retry.",
+    );
+  }
+
+  const where: SQL[] = [eq(events.id, row.id)];
+  if (expected !== null) where.push(eq(events.updatedAt, expected));
+  const deleted = getDb().transaction((tx) => {
+    tx.delete(tag_links)
+      .where(and(eq(tag_links.resourceType, "event"), eq(tag_links.resourceId, row.id)))
+      .run();
+    return tx
+      .delete(events)
+      .where(and(...where))
+      .returning()
+      .get();
+  });
+  if (deleted === undefined) {
+    // The token matched on the read above but not in the statement: someone
+    // changed (or deleted) the row in between.
+    throw new ProductivityError(
+      "version_conflict",
+      "This event changed since it was read; re-read it and retry.",
+    );
+  }
+
+  await recordActivity({
+    actor,
+    ownerUserId: deleted.ownerUserId,
+    resourceType: "event",
+    resourceId: deleted.id,
+    action: "deleted",
+    detail: { title: deleted.title },
+  });
+  return recordOf(deleted);
+}
+
+/**
+ * Copy an event the caller can see into a new event they own.
+ *
+ * This is a read plus a create, not an edit: the copy belongs to the actor, so
+ * duplicating another account's visible event writes nothing under that account
+ * and reveals nothing the actor could not already see. That is why it needs
+ * `calendar.create` and no edit grant. Participants, tags and (later) recurrence
+ * rules are *not* copied — an invitation is another account's decision, and a
+ * rule set is a separate object with its own identity (§14).
+ */
+export async function duplicateEvent(actor: Actor, eventId: unknown): Promise<EventRecord> {
+  await authorize(actor, "calendar.create");
+  const source = await readEvent(actor, eventId);
+  return insertEvent(
+    actor,
+    {
+      title: source.title,
+      description: source.description,
+      start: source.startAt,
+      end: source.endAt,
+      allDay: source.isAllDay,
+      timezone: source.timezone,
+      status: source.status,
+      category: source.category,
+      color: source.color,
+      location: source.location,
+    },
+    { duplicatedFrom: source.id },
+  );
 }
 
 /**
@@ -559,20 +736,29 @@ export interface EventPage {
 }
 
 /**
- * Shared body of both list queries: bounded window, optional status filter, keyset
+ * What the list reads and search all accept. `category: null` means "uncategorized",
+ * which is why the field distinguishes "absent" from "null".
+ */
+interface EventQuery {
+  window: { from: unknown; to: unknown };
+  limit?: number;
+  cursor?: { startAt: string; id: string } | null;
+  status?: unknown;
+  category?: unknown;
+  location?: unknown;
+  attendeeUserId?: unknown;
+}
+
+/**
+ * Shared body of both list queries and search: bounded window, filters, keyset
  * pagination on `(start_at, id)` — the exact order `events_owner_start_idx` covers,
  * so paging stays stable when two events start in the same second.
+ *
+ * `scope` is the caller's visibility predicate (plus an attendance filter when
+ * asked for); filters are ANDed onto it, never onto an unscoped table read.
  */
-async function queryEvents(
-  scope: SQL,
-  query: {
-    window?: { from?: unknown; to?: unknown };
-    limit?: number;
-    cursor?: { startAt: string; id: string } | null;
-    status?: unknown;
-  },
-): Promise<EventPage> {
-  const window = parseQueryWindow(query.window ?? {});
+async function queryEvents(scope: SQL, query: EventQuery & { text?: string }): Promise<EventPage> {
+  const window = parseQueryWindow(query.window);
   const limit = clampPageSize(query.limit);
 
   const conditions: SQL[] = [
@@ -582,6 +768,24 @@ async function queryEvents(
   ];
   if (query.status !== undefined) {
     conditions.push(eq(events.status, requireStatus(query.status)));
+  }
+  if (query.category !== undefined) {
+    // `categoryOf` maps "no category" to null, and `eq(col, null)` is never true
+    // in SQL; an unassigned category has to be asked for with IS NULL.
+    const category = categoryOf(query.category);
+    conditions.push(category === null ? isNull(events.category) : eq(events.category, category));
+  }
+  if (query.location !== undefined) {
+    const phrase = requireFilterText(query.location, "Location filter");
+    conditions.push(sql`(${events.location} like ${likePattern(phrase)} escape '\\')`);
+  }
+  if (query.text !== undefined) {
+    // Title and description only (§22); location and category are filters, so
+    // searching them too would make a phrase and a chip mean the same thing.
+    const pattern = likePattern(query.text);
+    const title = sql`(${events.title} like ${pattern} escape '\\')`;
+    const description = sql`(${events.description} like ${pattern} escape '\\')`;
+    conditions.push(sql`(${title} or ${description})`);
   }
   if (query.cursor) {
     const startAt = requireCursorInstant(query.cursor.startAt);
@@ -615,23 +819,19 @@ async function queryEvents(
  * A window is mandatory rather than "default to everything": an unbounded
  * calendar query grows with the user's history, so the service refuses it with
  * `window_too_large` / `invalid_window` instead of scanning the table.
+ *
+ * `attendeeUserId` narrows to events that account attends. It is refused unless
+ * the id is the actor's own or the actor holds `calendar.view.any`: otherwise any
+ * account could enumerate another person's invitations, which the participant
+ * table exists to make visible only to the people involved.
  */
-export async function listEvents(
-  actor: Actor,
-  query: {
-    window: { from: unknown; to: unknown };
-    limit?: number;
-    cursor?: { startAt: string; id: string } | null;
-    status?: unknown;
-  },
-): Promise<EventPage> {
+export async function listEvents(actor: Actor, query: EventQuery): Promise<EventPage> {
   const view = await eventView(actor);
   if (view.kind === "none") {
     await authorize(actor, "calendar.view.own");
     throw new ProductivityError("not_authorized", "This actor cannot see any events.");
   }
-  const scope: SQL = view.kind === "where" ? view.predicate : sql`1 = 1`;
-  return queryEvents(scope, query);
+  return queryEvents(viewScope(view, await attendeeScope(actor, query.attendeeUserId)), query);
 }
 
 /**
@@ -641,19 +841,63 @@ export async function listEvents(
  * exists for. It is refused (not emptied) unless the actor holds a view permission
  * that can include other people's events.
  */
-export async function listEventsAttendedBy(
-  actor: Actor,
-  query: {
-    window: { from: unknown; to: unknown };
-    limit?: number;
-    cursor?: { startAt: string; id: string } | null;
-    status?: unknown;
-  },
-): Promise<EventPage> {
+export async function listEventsAttendedBy(actor: Actor, query: EventQuery): Promise<EventPage> {
   if (!(await can(actor, "calendar.view.shared"))) {
     await authorize(actor, "calendar.view.shared");
   }
   return queryEvents(participantClause(actor.userId), query);
+}
+
+/**
+ * Search titles and descriptions inside a window (§22), oldest first.
+ *
+ * Search is not a second view of the data: the actor's `calendar.*` grants still
+ * decide which rows a phrase may match, so a `user` cannot search across another
+ * account's private events. `search.view` only decides whether the search box
+ * exists at all. The window stays mandatory for the same reason it is mandatory
+ * for the agenda — an unbounded `LIKE` scan grows with history.
+ *
+ * Matching is SQLite `LIKE`: case-insensitive for ASCII, case-sensitive for the
+ * rest, with wildcards in the phrase escaped so `10%` searches for literal text
+ * instead of matching everything after `10`.
+ */
+export async function searchEvents(
+  actor: Actor,
+  query: EventQuery & { text: unknown },
+): Promise<EventPage> {
+  await authorize(actor, "search.view");
+  const text = searchPhrase(query.text);
+  const view = await eventView(actor);
+  if (view.kind === "none") {
+    await authorize(actor, "calendar.view.own");
+    throw new ProductivityError("not_authorized", "This actor cannot see any events.");
+  }
+  const scope = viewScope(view, await attendeeScope(actor, query.attendeeUserId));
+  return queryEvents(scope, { ...query, text });
+}
+
+/** The actor's visibility predicate, ANDed with an attendance filter if given. */
+function viewScope(view: EventView, attendee: SQL | null): SQL {
+  const visible = view.kind === "where" ? view.predicate : sql`1 = 1`;
+  if (attendee === null) return visible;
+  return sql`(${visible}) and (${attendee})`;
+}
+
+/**
+ * `attendeeUserId` as a scope predicate, or null when the caller did not filter
+ * by attendance. Another account's id is honoured only for an actor who may already
+ * see any event — see `listEvents`.
+ */
+async function attendeeScope(actor: Actor, userIdValue: unknown): Promise<SQL | null> {
+  if (userIdValue === undefined || userIdValue === null) return null;
+  const userId = requireResourceId(userIdValue);
+  if (userId !== actor.userId && !(await can(actor, "calendar.view.any"))) {
+    throw new ProductivityError(
+      "not_authorized",
+      "Filtering by another account's attendance requires calendar.view.any.",
+    );
+  }
+  return participantClause(userId);
 }
 
 /**
@@ -693,6 +937,53 @@ function instantText(value: unknown, label: string): string {
     throw new ProductivityError("invalid_instant", `${label} must be an ISO-8601 instant.`);
   }
   return value.trim();
+}
+
+/**
+ * Validate a filter phrase: a non-empty string no longer than the column it is
+ * matched against. An over-length filter can never match, so it is rejected as
+ * input rather than silently returning nothing.
+ */
+function requireFilterText(value: unknown, label: string): string {
+  if (typeof value !== "string" || value.trim() === "") {
+    throw new ProductivityError("invalid_filter", `${label} must be a non-empty string.`);
+  }
+  const phrase = value.trim();
+  if (phrase.length > MAX_EVENT_LOCATION_LENGTH) {
+    throw new ProductivityError(
+      "invalid_filter",
+      `${label} may be at most ${MAX_EVENT_LOCATION_LENGTH} characters.`,
+    );
+  }
+  return phrase;
+}
+
+/**
+ * Validate a search phrase (§22). Empty is refused rather than treated as "match
+ * everything": a search box that matches the whole window is a trap, not a default.
+ */
+function searchPhrase(value: unknown): string {
+  if (typeof value !== "string" || value.trim() === "") {
+    throw new ProductivityError("invalid_query", "Search needs a non-empty phrase.");
+  }
+  const phrase = value.trim();
+  if (phrase.length > MAX_SEARCH_QUERY_LENGTH) {
+    throw new ProductivityError(
+      "query_too_long",
+      `A search phrase may be at most ${MAX_SEARCH_QUERY_LENGTH} characters.`,
+    );
+  }
+  return phrase;
+}
+
+/**
+ * A `LIKE` pattern for a literal phrase. SQLite gives `LIKE` no default escape
+ * character, so every pattern built here is paired with `escape '\'` in SQL; without
+ * that, a phrase containing `%` or `_` would match unrelated rows.
+ */
+function likePattern(phrase: string): string {
+  const escaped = phrase.replace(/\\/g, "\\\\").replace(/[%_]/g, "\\$&");
+  return `%${escaped}%`;
 }
 
 /**
