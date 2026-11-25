@@ -80,6 +80,28 @@ Updated at each gate. IDs match `docs/PLAN.md`.
 
 ## Log (append-only, newest first)
 
+### 2026-11-25 — Packet 2C implemented: event service + `/api/v1/events*` wire contract
+
+Created `src/lib/eventsApi.ts` (query-string schemas `eventListParams` / `eventSearchParams`, `parseQuery`, `toEventQuery`, body → status mapping) and the route tree `src/app/api/v1/events/{route,search,attending,[id]}`: `GET` list, `GET /search`, `GET /attending`, `POST` create, `POST /{id}` duplicate, `PATCH /{id}` optimistic edit, `DELETE /{id}`. Extended `src/lib/events.ts` with the service surface behind them (list / search / attending / read / create / update / remove / duplicate, cursor paging on `(start_at, id)`, participant visibility clause, owner-scoped reads so another user's id and a nonexistent id fail identically as 404 `not_found`). `src/lib/productivity.ts` gained the search vocabulary (`MAX_SEARCH_QUERY_LENGTH`, `invalid_query` / `query_too_long` / `invalid_filter`) and the `version_conflict → 409` rationale. `src/lib/api.ts` gained a 32 KB body cap enforced before parsing, `parseOptionalJson` for path-only inputs, and the `ProductivityError` → HTTP table. `src/app/api/v1/openapi.json/route.ts` documents the new endpoints.
+
+Two defects found while wiring the packet, both fixed:
+
+1. `apiErrorResponse` had no branch for rbac's `AuthorizationError`. The 2C services call `authorize` directly — there is no `runAction` wrapper converting it to an `ActionError` — so **every** authorization denial would have surfaced as a 500. It now maps `missing_permission` / `unknown_role` / `mfa_required` → 403 and `stale_session` → 401, with a test pinning each.
+2. The E2E bootstrap provisioned only one ordinary session, so the spec could not distinguish "not allowed to see" from "not allowed to change". `scripts/e2e-server.mjs` now also bootstraps a `reader` account that holds `calendar.view.shared` but no write grant, and `tests/e2e/helpers.ts` exports its credentials; `tests/e2e/eventsApi.spec.ts` asserts that session gets 200 on the shared list and 403 `missing_permission` on every write method.
+
+Also removed two scratch `tests/unit/probe*.test.ts` files left in the tree by earlier exploration — they were not tests of behaviour.
+
+| Command                | Executed result                                                                                                                                                                                                |
+| ---------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `npm run typecheck`    | **passed**, 0 TypeScript errors                                                                                                                                                                                |
+| `npm run lint`         | **passed**, 0 ESLint errors/warnings                                                                                                                                                                           |
+| `npm run format:check` | **passed**, all files Prettier-clean (after `prettier --write` on packet files)                                                                                                                                |
+| `npm test`             | **25 files / 174 tests passed** (was 25 / 153 at 2B: +21 across `tests/unit/events.test.ts`, `tests/integration/eventsService.test.ts`, `tests/integration/eventsApi.test.ts`)                                 |
+| `npm run build`        | **passed**, Next 16.4.6 Webpack production build                                                                                                                                                               |
+| `npm run test:e2e`     | **59 passed / 3 skipped** (62 collected; the 3 skips are the pre-existing desktop-only `auth.spec.ts` lifecycle cases). `tests/e2e/eventsApi.spec.ts` **4/4 in both** `desktop-chromium` and `mobile-chromium` |
+
+Note for future E2E work: both Playwright projects share one bootstrapped SQLite database, so cross-project row-count assertions race. `eventsApi.spec.ts` namespaces its marker category by project (`e2e-wire-<project>`).
+
 ### 2026-11-25 — Packet 2B implemented: event + participant schema, event repository
 
 Added migration `0003_phase2b_events` with two tables. `events` carries the owner, `start_at`/`end_at` as UTC ISO strings, all-day flag, IANA `timezone`, status, color, location, category, description and the visibility columns, guarded by **12 CHECK constraints** (UTC shape via `glob`, `end_at > start_at`, status enum, boolean encoding, and every field length bound) plus four indexes: `(owner_user_id, start_at, id)`, `(owner_user_id, status, start_at)`, `(status, start_at)` and the primary key. `event_participants` is the `(event_id, user_id)` join with a unique index both directions. `src/db/schema/events.ts` mirrors all of it in Drizzle; `src/db/schema/index.ts` re-exports it.
@@ -268,7 +290,7 @@ Explicitly **not** done, on purpose: no `package.json`, no dependencies installe
 
 ## Next action
 
-Start only **packet 2C — Non-recurring event service and API** from `docs/LOCAL_AI_ROADMAP.md`. Complete its micro-gate and green commit before opening 2D. Do not ask a local AI to implement all of Phase 2 in one task.
+Start only **packet 2D — Event form, agenda, and detail UI** from `docs/LOCAL_AI_ROADMAP.md`. 2C is implemented and its micro-gate is green (unit + integration + full E2E); complete 2D and land its green commit before opening 2E. Do not ask a local AI to implement all of Phase 2 in one task.
 
 Current truth for running it locally:
 

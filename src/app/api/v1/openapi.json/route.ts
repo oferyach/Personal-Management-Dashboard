@@ -18,6 +18,37 @@ export function GET(request: Request): Response {
       "/profile/image": {
         post: { summary: "Upload profile image", responses: { "201": { description: "Created" } } },
       },
+      "/events": {
+        get: {
+          summary: "List events in a window",
+          responses: { "200": { description: "Events page" } },
+        },
+        post: { summary: "Create event", responses: { "201": { description: "Created" } } },
+      },
+      "/events/attending": {
+        get: {
+          summary: "List events the caller attends",
+          responses: { "200": { description: "Events page" } },
+        },
+      },
+      "/events/search": {
+        get: {
+          summary: "Search event titles and descriptions in a window",
+          responses: { "200": { description: "Events page" } },
+        },
+      },
+      "/events/{id}": {
+        get: { summary: "Read one event", responses: { "200": { description: "Event" } } },
+        patch: {
+          summary: "Update event (requires expectedUpdatedAt)",
+          responses: { "200": { description: "Updated" } },
+        },
+        post: { summary: "Duplicate event", responses: { "201": { description: "Created" } } },
+        delete: {
+          summary: "Delete event",
+          responses: { "200": { description: "Deleted row" } },
+        },
+      },
       "/users": {
         get: { summary: "List users", responses: { "200": { description: "Users" } } },
         post: { summary: "Create user", responses: { "201": { description: "Created" } } },
